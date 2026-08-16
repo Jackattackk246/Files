@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <group
+        android:pivotX="54"
+        android:pivotY="54"
+        android:scaleX="0.75"
+        android:scaleY="0.75">
+
+        <!-- Red Document Tab (Leftmost) -->
+        <path
+            android:fillColor="#E52521"
+            android:pathData="M29,18 C29,15.8 30.8,14 33,14 L48,14 L58,24 L58,52 L29,52 Z" />
+
+        <!-- Yellow Document Tab (Middle) -->
+        <path
+            android:fillColor="#FFBA00"
+            android:pathData="M36,26 C36,23.8 37.8,22 40,22 L60,22 L70,32 L70,52 L36,52 Z" />
+
+        <!-- Mint Green Document Tab (Rightmost) -->
+        <path
+            android:fillColor="#4ECB98"
+            android:pathData="M49,34 C49,31.8 50.8,30 53,30 L71,30 L81,40 L81,52 L49,52 Z" />
+
+        <!-- Dark Green Main Folder Body (Front) -->
+        <path
+            android:fillColor="#006738"
+            android:pathData="M20,46 C20,42.7 22.7,40 26,40 L45,40 C47.5,40 49.5,41.2 51,43 L55,47 C56.5,48.8 58.5,50 61,50 L82,50 C85.3,50 88,52.7 88,56 L88,82 C88,85.3 85.3,88 82,88 L26,88 C22.7,88 20,85.3 20,82 Z" />
+
+    </group>
+
+</vector>
