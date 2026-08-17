@@ -64,9 +64,14 @@ fun DashboardScreen(
 ) {
   val context = LocalContext.current
   val configuration = LocalConfiguration.current
+  val desktopPalette by com.aistudio.fileslauncher.ui.ThemeSynchronizationBridge.paletteState.collectAsState()
 
-  val displayProfile = remember(configuration) {
-    DeviceEnvironmentDetector.resolveDisplayProfile(context, configuration)
+  val displayProfile = remember(configuration, desktopPalette.isForcedWindows11Desktop) {
+    if (desktopPalette.isForcedWindows11Desktop) {
+      DeviceDisplayProfile.EXTERNAL_DEX_DESKTOP
+    } else {
+      DeviceEnvironmentDetector.resolveDisplayProfile(context, configuration)
+    }
   }
 
   val physicalMetrics = remember {
@@ -83,8 +88,8 @@ fun DashboardScreen(
   val isLight = ThemeManager.isLightBackgroundProfile(themeMode, season)
   val primaryTextColor = ThemeManager.getAdaptivePrimaryTextColor(themeMode, season)
   val secondaryTextColor = ThemeManager.getAdaptiveSecondaryTextColor(themeMode, season)
-  val accentColor = ThemeManager.getThemeAccentColor(themeMode)
-  val cardContainer = ThemeManager.getAdaptiveCardContainerColor(themeMode, season)
+  val accentColor = desktopPalette.customAccentColor
+  val cardContainer = if (desktopPalette.isDesktopCanvasActive) desktopPalette.widescreenContainerBg else ThemeManager.getAdaptiveCardContainerColor(themeMode, season)
   val cardBorder = ThemeManager.getAdaptiveCardBorderColor(themeMode, season)
 
   LaunchedEffect(Unit) {
@@ -110,11 +115,13 @@ fun DashboardScreen(
   }
 
   Box(
-    modifier = Modifier.fillMaxSize(),
+    modifier = Modifier
+      .fillMaxSize()
+      .background(if (desktopPalette.isDesktopCanvasActive) desktopPalette.widescreenContainerBg else Color.Transparent),
     contentAlignment = Alignment.TopCenter
   ) {
     LazyColumn(
-      modifier = contentModifier.testTag("dashboard_screen_container"),
+      modifier = contentModifier.testTag("dashboard_scroll_view"),
       verticalArrangement = Arrangement.spacedBy(16.dp),
       contentPadding = PaddingValues(top = 12.dp, bottom = 90.dp)
     ) {
@@ -154,18 +161,23 @@ fun DashboardScreen(
               )
             }
 
+            val dynamicGreeting = remember {
+              com.example.util.UserProfilePreferences.getDynamicTimeGreeting(context)
+            }
+
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
               Text(
-                text = "Files",
+                text = dynamicGreeting,
+                modifier = Modifier.testTag("greeting_text_view"),
                 style = MaterialTheme.typography.titleLarge.copy(
                   fontWeight = FontWeight.Bold,
-                  fontSize = 22.sp,
+                  fontSize = 20.sp,
                   color = primaryTextColor
                 )
               )
               Text(
                 text = when (displayProfile) {
-                  DeviceDisplayProfile.EXTERNAL_DEX_DESKTOP -> "Samsung DeX Desktop Edition"
+                  DeviceDisplayProfile.EXTERNAL_DEX_DESKTOP -> "Windows 11 Desktop Workspace"
                   DeviceDisplayProfile.TABLET -> "Tablet Workspace Edition"
                   DeviceDisplayProfile.PHONE -> "Phone Standard Profile"
                 },
@@ -178,15 +190,25 @@ fun DashboardScreen(
           }
 
           Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            // Toggle Windows 11 Desktop Canvas / Tablet Toggle Profile (Silent, persistent)
+            IconButton(
+              onClick = {
+                val nextState = !desktopPalette.isForcedWindows11Desktop
+                com.aistudio.fileslauncher.ui.ThemeSynchronizationBridge.setForcedWindows11DesktopEnabled(context, nextState)
+              },
+              modifier = Modifier.testTag("dashboard_desktop_canvas_toggle_button")
+            ) {
+              Icon(
+                imageVector = if (desktopPalette.isForcedWindows11Desktop) Icons.Default.DesktopWindows else Icons.Default.LaptopMac,
+                contentDescription = "Toggle Windows 11 Desktop Workspace",
+                tint = if (desktopPalette.isForcedWindows11Desktop) accentColor else primaryTextColor
+              )
+            }
+
             IconButton(
               onClick = {
                 isEditModeUnlocked = !isEditModeUnlocked
                 DashboardPreferences.setEditModeUnlocked(context, isEditModeUnlocked)
-                Toast.makeText(
-                  context,
-                  if (isEditModeUnlocked) "Dashboard Edit Mode Active" else "Dashboard Layout Locked",
-                  Toast.LENGTH_SHORT
-                ).show()
               },
               modifier = Modifier.testTag("dashboard_customize_button")
             ) {
@@ -321,6 +343,7 @@ fun DashboardScreen(
 
             DashboardWidgetId.LOCAL_STORAGE_HUBS -> {
               LocalStorageHubsWidget(
+                physicalMetrics = physicalMetrics,
                 sizeMode = widgetConfig.sizeMode,
                 usbDriveDetails = usbDriveDetails,
                 trashedCount = trashedCount,
@@ -338,6 +361,7 @@ fun DashboardScreen(
             DashboardWidgetId.APKS_INSTALLER_CENTER -> {
               FiveCategoryHubsWidget(
                 sizeMode = widgetConfig.sizeMode,
+                themeMode = themeMode,
                 isLight = isLight,
                 primaryTextColor = primaryTextColor,
                 secondaryTextColor = secondaryTextColor,
@@ -675,10 +699,11 @@ private fun DeviceStorageMeterWidget(
 }
 
 // =========================================================================
-// 2. LOCAL STORAGE HUBS WIDGET (Primary Grid + Recycle Bin)
+// 2. LOCAL STORAGE HUBS WIDGET (Windows 11 Desktop Drives + Primary Grid + Recycle Bin)
 // =========================================================================
 @Composable
 private fun LocalStorageHubsWidget(
+  physicalMetrics: PhysicalStorageMetrics,
   sizeMode: WidgetSizeMode,
   usbDriveDetails: FileManager.UsbDriveDetails?,
   trashedCount: Int,
@@ -692,8 +717,14 @@ private fun LocalStorageHubsWidget(
   onOpenRecycleBin: () -> Unit
 ) {
   val context = LocalContext.current
+  val desktopPalette by com.aistudio.fileslauncher.ui.ThemeSynchronizationBridge.paletteState.collectAsState()
 
-  Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .testTag("local_storage_hubs_container"),
+    verticalArrangement = Arrangement.spacedBy(10.dp)
+  ) {
     Row(
       verticalAlignment = Alignment.CenterVertically,
       horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -702,11 +733,11 @@ private fun LocalStorageHubsWidget(
       Icon(
         imageVector = Icons.Default.Folder,
         contentDescription = null,
-        tint = accentColor,
+        tint = desktopPalette.folderIconTint,
         modifier = Modifier.size(20.dp)
       )
       Text(
-        text = "Local Storage Hubs",
+        text = if (desktopPalette.isDesktopCanvasActive) "Windows 11 Devices & Drives" else "Local Storage Hubs",
         style = MaterialTheme.typography.titleMedium.copy(
           fontWeight = FontWeight.Bold,
           fontSize = 18.sp,
@@ -715,66 +746,76 @@ private fun LocalStorageHubsWidget(
       )
     }
 
-    // 4-Card Primary Grid [Documents, Download, Main Storage, System]
+    // Authentic Hardware Drive Capacity Cell: [System (C:)] + Connected USB OTG (if attached)
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        PrimaryGridHubCard(
-          title = "Documents",
-          path = "/storage/emulated/0/Documents",
-          icon = Icons.Default.Description,
-          modifier = Modifier.weight(1f),
-          accentColor = accentColor,
-          cardContainer = cardContainer,
-          cardBorder = cardBorder,
-          primaryTextColor = primaryTextColor,
-          secondaryTextColor = secondaryTextColor
-        ) {
-          onNavigateToExplorer(File("/storage/emulated/0/Documents"), null)
-        }
-
-        PrimaryGridHubCard(
-          title = "Download",
-          path = "/storage/emulated/0/Download",
-          icon = Icons.Default.Download,
-          modifier = Modifier.weight(1f),
-          accentColor = accentColor,
-          cardContainer = cardContainer,
-          cardBorder = cardBorder,
-          primaryTextColor = primaryTextColor,
-          secondaryTextColor = secondaryTextColor
-        ) {
-          onNavigateToExplorer(File("/storage/emulated/0/Download"), null)
-        }
+      DesktopDriveCapacityCard(
+        driveLabel = "System (C:)",
+        volumeName = "Internal Storage Volume",
+        path = "/storage/emulated/0",
+        usedRatio = physicalMetrics.usedRatio,
+        capacityText = "${physicalMetrics.formattedFree} free of ${physicalMetrics.formattedTotal}",
+        accentSwatch = desktopPalette.systemDriveCColor,
+        folderIconTint = desktopPalette.folderIconTint,
+        cardContainer = cardContainer,
+        cardBorder = cardBorder,
+        primaryTextColor = primaryTextColor,
+        secondaryTextColor = secondaryTextColor,
+        testTag = "drive_system_c"
+      ) {
+        onNavigateToExplorer(File("/storage/emulated/0"), null)
       }
 
-      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        PrimaryGridHubCard(
-          title = "Main Storage",
-          path = "/storage/emulated/0",
-          icon = Icons.Default.Smartphone,
-          modifier = Modifier.weight(1f),
-          accentColor = accentColor,
+      if (usbDriveDetails != null && usbDriveDetails.isConnected) {
+        DesktopDriveCapacityCard(
+          driveLabel = usbDriveDetails.name,
+          volumeName = "External OTG Drive",
+          path = usbDriveDetails.path.absolutePath,
+          usedRatio = 0.20f,
+          capacityText = "${usbDriveDetails.freeGbFormatted} free of ${usbDriveDetails.totalGbFormatted}",
+          accentSwatch = desktopPalette.backupDriveDColor,
+          folderIconTint = desktopPalette.folderIconTint,
           cardContainer = cardContainer,
           cardBorder = cardBorder,
           primaryTextColor = primaryTextColor,
-          secondaryTextColor = secondaryTextColor
+          secondaryTextColor = secondaryTextColor,
+          testTag = "drive_usb_otg"
         ) {
-          onNavigateToExplorer(File("/storage/emulated/0"), null)
+          onNavigateToExplorer(usbDriveDetails.path, null)
         }
+      }
+    }
 
-        PrimaryGridHubCard(
-          title = "System",
-          path = "/system",
-          icon = Icons.Default.Memory,
-          modifier = Modifier.weight(1f),
-          accentColor = accentColor,
-          cardContainer = cardContainer,
-          cardBorder = cardBorder,
-          primaryTextColor = primaryTextColor,
-          secondaryTextColor = secondaryTextColor
-        ) {
-          onNavigateToExplorer(File("/system"), null)
-        }
+    // Adaptive Authentic Storage Grid: Auto-resized and realigned side-by-side [Download & Main Storage]
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+      PrimaryGridHubCard(
+        title = "Download",
+        path = "/storage/emulated/0/Download",
+        icon = Icons.Default.Download,
+        modifier = Modifier.weight(1f),
+        accentColor = desktopPalette.folderIconTint,
+        cardContainer = cardContainer,
+        cardBorder = cardBorder,
+        primaryTextColor = primaryTextColor,
+        secondaryTextColor = secondaryTextColor
+      ) {
+        onNavigateToExplorer(File("/storage/emulated/0/Download"), null)
+      }
+
+      PrimaryGridHubCard(
+        title = "Main Storage",
+        path = "/storage/emulated/0",
+        icon = Icons.Default.Smartphone,
+        modifier = Modifier.weight(1f),
+        accentColor = desktopPalette.folderIconTint,
+        cardContainer = cardContainer,
+        cardBorder = cardBorder,
+        primaryTextColor = primaryTextColor,
+        secondaryTextColor = secondaryTextColor
+      ) {
+        onNavigateToExplorer(File("/storage/emulated/0"), null)
       }
     }
 
@@ -878,6 +919,118 @@ private fun LocalStorageHubsWidget(
 }
 
 @Composable
+private fun DesktopDriveCapacityCard(
+  driveLabel: String,
+  volumeName: String,
+  path: String,
+  usedRatio: Float,
+  capacityText: String,
+  accentSwatch: Color,
+  folderIconTint: Color,
+  cardContainer: Color,
+  cardBorder: Color,
+  primaryTextColor: Color,
+  secondaryTextColor: Color,
+  modifier: Modifier = Modifier,
+  testTag: String = "desktop_drive_card",
+  onClick: () -> Unit
+) {
+  val context = LocalContext.current
+  Card(
+    modifier = modifier
+      .fillMaxWidth()
+      .clip(RoundedCornerShape(14.dp))
+      .clickable(onClick = {
+        HapticManager.navigationClick(context)
+        onClick()
+      })
+      .testTag(testTag),
+    shape = RoundedCornerShape(14.dp),
+    colors = CardDefaults.cardColors(containerColor = cardContainer),
+    border = BorderStroke(1.dp, cardBorder)
+  ) {
+    Column(
+      modifier = Modifier
+        .fillMaxWidth()
+        .padding(12.dp),
+      verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+          Box(
+            modifier = Modifier
+              .size(36.dp)
+              .clip(RoundedCornerShape(8.dp))
+              .background(accentSwatch.copy(alpha = 0.20f))
+              .border(1.dp, accentSwatch.copy(alpha = 0.45f), RoundedCornerShape(8.dp)),
+            contentAlignment = Alignment.Center
+          ) {
+            Icon(
+              imageVector = if (driveLabel.startsWith("System")) Icons.Default.Computer else if (driveLabel.startsWith("Backup")) Icons.Default.FolderSpecial else Icons.Default.CloudQueue,
+              contentDescription = null,
+              tint = folderIconTint,
+              modifier = Modifier.size(20.dp)
+            )
+          }
+
+          Column {
+            Text(
+              text = driveLabel,
+              style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold, color = primaryTextColor)
+            )
+            Text(
+              text = volumeName,
+              style = MaterialTheme.typography.labelSmall.copy(color = secondaryTextColor, fontSize = 11.sp)
+            )
+          }
+        }
+
+        // Color accent swatch badge
+        Box(
+          modifier = Modifier
+            .size(14.dp)
+            .clip(CircleShape)
+            .background(accentSwatch)
+            .border(1.dp, Color.White.copy(alpha = 0.3f), CircleShape)
+        )
+      }
+
+      // Horizontal Capacity Tracking Bar Graphic
+      LinearProgressIndicator(
+        progress = { usedRatio.coerceIn(0f, 1f) },
+        modifier = Modifier
+          .fillMaxWidth()
+          .height(5.dp)
+          .clip(CircleShape),
+        color = accentSwatch,
+        trackColor = accentSwatch.copy(alpha = 0.20f)
+      )
+
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+      ) {
+        Text(
+          text = capacityText,
+          style = MaterialTheme.typography.labelSmall.copy(color = secondaryTextColor, fontSize = 10.sp, fontWeight = FontWeight.Medium)
+        )
+        Text(
+          text = "${(usedRatio * 100).toInt()}% Used",
+          style = MaterialTheme.typography.labelSmall.copy(color = accentSwatch, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        )
+      }
+    }
+  }
+}
+
+@Composable
 private fun PrimaryGridHubCard(
   title: String,
   path: String,
@@ -890,10 +1043,14 @@ private fun PrimaryGridHubCard(
   secondaryTextColor: Color,
   onClick: () -> Unit
 ) {
+  val context = LocalContext.current
   Card(
     modifier = modifier
       .clip(RoundedCornerShape(14.dp))
-      .clickable(onClick = onClick)
+      .clickable(onClick = {
+        HapticManager.navigationClick(context)
+        onClick()
+      })
       .testTag("primary_hub_${title.lowercase()}"),
     shape = RoundedCornerShape(14.dp),
     colors = CardDefaults.cardColors(containerColor = cardContainer),
@@ -939,6 +1096,7 @@ private fun PrimaryGridHubCard(
 @Composable
 private fun FiveCategoryHubsWidget(
   sizeMode: WidgetSizeMode,
+  themeMode: AppThemeMode,
   isLight: Boolean,
   primaryTextColor: Color,
   secondaryTextColor: Color,
@@ -985,6 +1143,7 @@ private fun FiveCategoryHubsWidget(
       categories.forEach { hub ->
         FlatCapsuleCategoryCard(
           item = hub,
+          themeMode = themeMode,
           modifier = Modifier.weight(1f),
           accentColor = accentColor,
           cardContainer = cardContainer,
@@ -1010,6 +1169,7 @@ private data class CategoryHubItem(
 @Composable
 private fun FlatCapsuleCategoryCard(
   item: CategoryHubItem,
+  themeMode: AppThemeMode,
   modifier: Modifier = Modifier,
   accentColor: Color,
   cardContainer: Color,
@@ -1018,10 +1178,14 @@ private fun FlatCapsuleCategoryCard(
   secondaryTextColor: Color,
   onClick: () -> Unit
 ) {
+  val context = LocalContext.current
   Card(
     modifier = modifier
       .clip(RoundedCornerShape(12.dp))
-      .clickable(onClick = onClick)
+      .clickable(onClick = {
+        HapticManager.navigationClick(context)
+        onClick()
+      })
       .testTag("category_hub_${item.title.lowercase()}"),
     shape = RoundedCornerShape(12.dp),
     colors = CardDefaults.cardColors(containerColor = cardContainer),
@@ -1034,14 +1198,26 @@ private fun FlatCapsuleCategoryCard(
       horizontalAlignment = Alignment.CenterHorizontally,
       verticalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+      val isSamsungExperience = themeMode == AppThemeMode.SAMSUNG_EXPERIENCE
+      val iconBgColor = when {
+        isSamsungExperience && item.filterTag == "images" -> Color(0xFFFF5B72)
+        isSamsungExperience && item.filterTag == "audio" -> Color(0xFF29B6F6)
+        isSamsungExperience && item.filterTag == "docs" -> Color(0xFF3B66F5)
+        isSamsungExperience -> accentColor
+        else -> accentColor.copy(alpha = 0.18f)
+      }
+      val iconTint = if (isSamsungExperience) Color.White else accentColor
+      val iconShape = if (isSamsungExperience) RoundedCornerShape(18.dp) else RoundedCornerShape(8.dp)
+
       Box(
         modifier = Modifier
-          .size(32.dp)
-          .clip(RoundedCornerShape(8.dp))
-          .background(accentColor.copy(alpha = 0.18f)),
+          .size(36.dp)
+          .clip(iconShape)
+          .background(iconBgColor)
+          .testTag("media_icon_${item.filterTag}"),
         contentAlignment = Alignment.Center
       ) {
-        Icon(item.icon, contentDescription = null, tint = accentColor, modifier = Modifier.size(18.dp))
+        Icon(item.icon, contentDescription = null, tint = iconTint, modifier = Modifier.size(20.dp))
       }
 
       Text(

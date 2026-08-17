@@ -103,6 +103,12 @@ enum class AppThemeMode(
     "Desert Sage",
     "A clean, earthy pale olive-green backdrop canvas (#2F3E36) with warm cream typography accents.",
     0xFF84CC16
+  ),
+  SAMSUNG_EXPERIENCE(
+    "samsung_experience",
+    "Samsung Experience",
+    "Classic Dream UX palette with Deep Midnight Galaxy void (#0F111A), Dream Blue (#1473E6) and Samsung Orange (#FF9500) accents.",
+    0xFF1473E6
   );
 
   // Backward compatibility alias & lookup
@@ -410,6 +416,24 @@ private val DesertSageColorScheme = darkColorScheme(
   outlineVariant = Color(0x5584CC16)
 )
 
+// 16. Samsung Experience Scheme
+private val SamsungExperienceColorScheme = darkColorScheme(
+  primary = Color(0xFF1473E6),
+  onPrimary = Color.White,
+  primaryContainer = Color(0xFF1E2022),
+  onPrimaryContainer = Color(0xFF8EC5FC),
+  secondary = Color(0xFFFF9500),
+  onSecondary = Color.Black,
+  background = Color(0xFF0F111A),
+  onBackground = Color(0xFFF1F5F9),
+  surface = Color(0xCC1E2022),
+  onSurface = Color(0xFFF1F5F9),
+  surfaceVariant = Color(0xFF25282C),
+  onSurfaceVariant = Color(0xFF94A3B8),
+  outline = Color(0x448EC5FC),
+  outlineVariant = Color(0x228EC5FC)
+)
+
 @Composable
 fun MyApplicationTheme(
   themeMode: AppThemeMode = AppThemeMode.MIDNIGHT_MATTE_BLACK,
@@ -439,6 +463,7 @@ fun MyApplicationTheme(
     AppThemeMode.NEON_SYNTHWAVE -> NeonSynthwaveColorScheme
     AppThemeMode.SOLAR_FLARE -> SolarFlareColorScheme
     AppThemeMode.DESERT_SAGE -> DesertSageColorScheme
+    AppThemeMode.SAMSUNG_EXPERIENCE -> SamsungExperienceColorScheme
   }
 
   val finalColorScheme = if (customAccentColor != null) {

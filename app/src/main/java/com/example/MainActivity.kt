@@ -1,5 +1,20 @@
 package com.example
 
+// ============================================================================
+// 🔒 ARCHITECT NOTICE: OPEN-SOURCE INTEGRITY & CREATIVITY GATEWAY
+// Designed by Jack Lawton | Repository: Jackattackk246/Files
+// ============================================================================
+// If you are here to upgrade the app feel free to, but if you are just copy 
+// and pasting don't bother.
+// 
+// Feel free to use the security system in another app, feel free to just credit.
+//
+// NOTE: This application contains an automated Single-Line Creativity Pass. 
+// Direct clones or cosmetic name/icon swaps with zero code/layout modifications 
+// will trigger an immediate UI freeze, displaying: 
+// "Lacking creativity. You don't get the app."
+// ============================================================================
+
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -34,12 +49,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import coil.ImageLoader
 import coil.ImageLoaderFactory
 import coil.compose.AsyncImage
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
 import com.example.model.*
+import com.example.security.DeveloperSecurityEngine
 import com.example.ui.*
 import com.example.ui.wallpaper.BuiltInWallpaperBackdrop
 import com.example.ui.theme.AppThemeMode
@@ -51,6 +70,8 @@ import com.example.util.GyroscopeParallaxEngine
 import com.example.util.HapticFeedbackHelper
 import com.example.util.RecentFilesTracker
 import com.example.util.ThemePreferences
+import com.example.util.UserProfilePreferences
+import com.example.ui.dialog.WelcomeWizardDialog
 import android.view.View
 import com.example.ui.viewer.ProtectedPathDialog
 import kotlinx.coroutines.delay
@@ -97,14 +118,125 @@ class MainActivity : ComponentActivity(), ImageLoaderFactory {
     } catch (_: Exception) {}
   }
 
+  override fun onDestroy() {
+    super.onDestroy()
+    try {
+      com.example.ai.LocalOfflineAiModule.terminateThreads()
+      com.example.util.UsbStorageManager.terminateUsbJobs()
+    } catch (_: Exception) {}
+  }
+
+  private fun getStyleResourceForTheme(themeId: String): Int {
+    // Ensure all 100 choices return their absolute isolated resource ID map directly
+    return when (themeId.uppercase()) {
+      "THEME_1" -> R.style.Theme_Custom_1
+      "THEME_16" -> R.style.Theme_Custom_16
+      "THEME_100" -> R.style.Theme_Custom_100
+      else -> {
+        val number = themeId.filter { it.isDigit() }
+        if (number.isNotEmpty()) {
+          val resId = resources.getIdentifier("Theme_Custom_$number", "style", packageName)
+          if (resId != 0) resId else R.style.Theme_Custom_1
+        } else {
+          R.style.Theme_Custom_1
+        }
+      }
+    }
+  }
+
+  fun applyActiveThemeDetails() {
+    val sharedPrefs = getSharedPreferences("launcher_prefs", MODE_PRIVATE)
+    val activeThemeId = sharedPrefs.getString("selected_theme_preset", "NEON_RED") ?: "NEON_RED"
+
+    val scrollView = findViewById<android.widget.ScrollView>(R.id.dashboard_scroll_view)
+    val imagesIcon = findViewById<View>(R.id.media_icon_images)
+    val audioIcon = findViewById<View>(R.id.media_icon_audio)
+    val docsIcon = findViewById<View>(R.id.media_icon_docs)
+
+    if (activeThemeId == "SAMSUNG_EXPERIENCE") {
+      // =========================================================
+      // 1. ENABLE RETRO KINDLE FIRE OVERSCROLL GLOW
+      // =========================================================
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        // Forcefully changes modern elastic stretch back to the classic crescent glow shape
+        try {
+          val edgeEffectTypeMethod = scrollView?.javaClass?.getMethod("setEdgeEffectType", Int::class.javaPrimitiveType)
+          edgeEffectTypeMethod?.invoke(scrollView, 0) // EdgeEffect.TYPE_GLOW = 0
+        } catch (_: Exception) {}
+      }
+      // Tint the crescent shape to the exact transparent dark hue
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && scrollView != null) {
+        try {
+          val glowColor = android.graphics.Color.parseColor("#80000000")
+          scrollView.topEdgeEffectColor = glowColor
+          scrollView.bottomEdgeEffectColor = glowColor
+        } catch (_: Exception) {}
+      }
+
+      // =========================================================
+      // 2. ENABLE SAMSUNG EXPERIENCE ICON SQUIRCLES
+      // =========================================================
+      listOfNotNull(imagesIcon, audioIcon, docsIcon).forEach { iconView ->
+        iconView.setBackgroundResource(R.drawable.samsung_experience_squircle)
+      }
+      // Apply authentic Dream UX color tints to the background shapes
+      imagesIcon?.backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#FF5B72"))
+      audioIcon?.backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#29B6F6"))
+      docsIcon?.backgroundTintList = android.content.res.ColorStateList.valueOf(android.graphics.Color.parseColor("#3B66F5"))
+
+    } else {
+      // =========================================================
+      // DEFAULT FALLBACK FOR ALL OTHER THEMES
+      // =========================================================
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        // Let other themes use standard modern system bounce mechanics
+        try {
+          val edgeEffectTypeMethod = scrollView?.javaClass?.getMethod("setEdgeEffectType", Int::class.javaPrimitiveType)
+          edgeEffectTypeMethod?.invoke(scrollView, 1) // EdgeEffect.TYPE_STRETCH = 1
+        } catch (_: Exception) {}
+      }
+
+      // Remove the custom shapes and colors so they reset cleanly
+      listOfNotNull(imagesIcon, audioIcon, docsIcon).forEach { iconView ->
+        iconView.background = null
+        iconView.backgroundTintList = null
+      }
+    }
+  }
+
   @OptIn(ExperimentalMaterial3Api::class)
   override fun onCreate(savedInstanceState: Bundle?) {
+    val sharedPrefs = getSharedPreferences("launcher_prefs", MODE_PRIVATE)
+    val activeThemeId = sharedPrefs.getString("selected_theme_preset", "THEME_1") ?: "THEME_1"
+
+    // 1. CRITICAL: Completely decouple the window from standard theme caches
+    // This forcibly prevents any elements of the original 15 themes from sticking around.
+    theme.applyStyle(getStyleResourceForTheme(activeThemeId), true)
+
     super.onCreate(savedInstanceState)
+    window.setFlags(
+      android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED,
+      android.view.WindowManager.LayoutParams.FLAG_HARDWARE_ACCELERATED
+    )
     coil.Coil.setImageLoader(appImageLoader)
     enableEdgeToEdge()
     WindowCompat.setDecorFitsSystemWindows(window, false)
     window.statusBarColor = android.graphics.Color.TRANSPARENT
     window.navigationBarColor = android.graphics.Color.TRANSPARENT
+
+    // Verify creativity pass & inspect clock integrity
+    DeveloperSecurityEngine.verifyCreativityPass()
+    DeveloperSecurityEngine.inspectClockIntegrity(applicationContext)
+
+    // Initialize local offline AI tensor matrix engine
+    com.example.ai.LocalOfflineAiModule.initializeOfflineAi(applicationContext)
+
+    // Initialize native USB OTG storage manager
+    com.example.util.UsbStorageManager.initialize(applicationContext)
+
+    // Initialize Theme Synchronization Bridge with Compiler Whitelist Verification Pass
+    com.aistudio.fileslauncher.ui.ThemeSynchronizationBridge.initialize(applicationContext)
+    com.aistudio.fileslauncher.ui.ThemeSynchronizationBridge.verifyCompilerWhitelistBypass()
 
     // FORCE INJECTION: Pull the root decor window element directly from the OS layer
     val rootDecorWindowView: View = window.decorView.rootView
@@ -154,28 +286,65 @@ class MainActivity : ComponentActivity(), ImageLoaderFactory {
         }
       }
 
-      LaunchedEffect(Unit) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-          if (!Environment.isExternalStorageManager()) {
-            try {
-              val intent = Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION).apply {
-                data = Uri.parse("package:${context.packageName}")
-              }
-              manageStorageLauncher.launch(intent)
-            } catch (_: Exception) {
-              try {
-                val fallbackIntent = Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION)
-                manageStorageLauncher.launch(fallbackIntent)
-              } catch (_: Exception) {}
+      val launcherPrefs = remember { context.getSharedPreferences("launcher_prefs", android.content.Context.MODE_PRIVATE) }
+      var isOnboardingComplete by remember {
+        mutableStateOf(launcherPrefs.getBoolean("onboarding_complete", false))
+      }
+      var showWelcomeWizardDialog by remember {
+        mutableStateOf(!launcherPrefs.getBoolean("onboarding_complete", false))
+      }
+
+      val lifecycleOwner = LocalLifecycleOwner.current
+      DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+          if (event == Lifecycle.Event.ON_RESUME) {
+            val isCompleted = launcherPrefs.getBoolean("onboarding_complete", false)
+            isOnboardingComplete = isCompleted
+            if (!isCompleted) {
+              // 1. Force route to the welcome/onboarding wizard first
+              showWelcomeWizardDialog = true
             }
+            // 2. Storage permission checks are completely removed from automatic lifecycle.
+            // Main app dashboard inflates immediately without interrupts.
           }
-        } else {
-          legacyPermissionLauncher.launch(
-            arrayOf(
-              Manifest.permission.READ_EXTERNAL_STORAGE,
-              Manifest.permission.WRITE_EXTERNAL_STORAGE
-            )
-          )
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+          lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+      }
+
+      val usbSafLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocumentTree()
+      ) { uri ->
+        if (uri != null) {
+          com.example.util.UsbStorageManager.savePersistedTreeUri(context, uri)
+        }
+      }
+
+      DisposableEffect(context) {
+        val receiver = com.example.util.UsbStorageBroadcastReceiver()
+        val filter = android.content.IntentFilter().apply {
+          addAction("android.hardware.usb.action.USB_DEVICE_ATTACHED")
+          addAction("android.hardware.usb.action.USB_DEVICE_DETACHED")
+          addAction(android.hardware.usb.UsbManager.ACTION_USB_DEVICE_ATTACHED)
+          addAction(android.hardware.usb.UsbManager.ACTION_USB_DEVICE_DETACHED)
+          addAction(Intent.ACTION_MEDIA_MOUNTED)
+          addAction(Intent.ACTION_MEDIA_UNMOUNTED)
+          addAction(Intent.ACTION_MEDIA_REMOVED)
+          addAction(Intent.ACTION_MEDIA_EJECT)
+          addDataScheme("file")
+        }
+        ContextCompat.registerReceiver(
+          context,
+          receiver,
+          filter,
+          ContextCompat.RECEIVER_EXPORTED
+        )
+        onDispose {
+          try {
+            context.unregisterReceiver(receiver)
+          } catch (_: Exception) {}
         }
       }
 
@@ -377,6 +546,21 @@ class MainActivity : ComponentActivity(), ImageLoaderFactory {
                   coroutineScope.launch {
                     drawerState.close()
                     showEnvironmentalDialog = true
+                  }
+                },
+                onOpenUsbStorage = { usbMountFile: File? ->
+                  coroutineScope.launch {
+                    drawerState.close()
+                    if (usbMountFile != null && usbMountFile.exists()) {
+                      currentDirectory = usbMountFile
+                    }
+                    selectedNavNode = NavigationNode.EXPLORER
+                  }
+                },
+                onRequestUsbSafAuth = {
+                  coroutineScope.launch {
+                    drawerState.close()
+                    usbSafLauncher.launch(null)
                   }
                 }
               )
@@ -633,7 +817,8 @@ class MainActivity : ComponentActivity(), ImageLoaderFactory {
                   season = environmentalConfig.selectedSeason,
                   onOpenSearchConfigDialog = { showSearchConfigDialog = true },
                   onOpenWallpaperEngineDialog = { showWallpaperEngineDialog = true },
-                  onOpenEnvironmentalEngineDialog = { showEnvironmentalDialog = true }
+                  onOpenEnvironmentalEngineDialog = { showEnvironmentalDialog = true },
+                  onOpenWelcomeWizard = { showWelcomeWizardDialog = true }
                 )
               }
             }
@@ -906,6 +1091,22 @@ class MainActivity : ComponentActivity(), ImageLoaderFactory {
           )
         }
 
+        // Welcome Setup & Personalization Wizard Dialog
+        if (showWelcomeWizardDialog) {
+          WelcomeWizardDialog(
+            initialTheme = themeMode,
+            initialWallpaper = wallpaperConfig,
+            onComplete = { _, _, _, selectedTheme, selectedWallpaper ->
+              themeMode = selectedTheme
+              wallpaperConfig = selectedWallpaper
+              showWelcomeWizardDialog = false
+              launcherPrefs.edit().putBoolean("onboarding_complete", true).apply()
+              isOnboardingComplete = true
+              refreshDirectoryFiles()
+            }
+          )
+        }
+
         // Protected Path Intercept Gate Modal
         protectedPathTarget?.let { target ->
           ProtectedPathDialog(
@@ -965,7 +1166,8 @@ private fun MainContentPane(
   season: com.example.model.EnvironmentalSeason = com.example.model.EnvironmentalSeason.AUTO,
   onOpenSearchConfigDialog: () -> Unit,
   onOpenWallpaperEngineDialog: () -> Unit,
-  onOpenEnvironmentalEngineDialog: () -> Unit
+  onOpenEnvironmentalEngineDialog: () -> Unit,
+  onOpenWelcomeWizard: () -> Unit = {}
 ) {
   when (selectedNavNode) {
     NavigationNode.DASHBOARD -> {
@@ -1035,7 +1237,8 @@ private fun MainContentPane(
         onRefreshStorage = onRefreshStorage,
         onOpenSearchConfigDialog = onOpenSearchConfigDialog,
         onOpenWallpaperEngineDialog = onOpenWallpaperEngineDialog,
-        onOpenEnvironmentalEngineDialog = onOpenEnvironmentalEngineDialog
+        onOpenEnvironmentalEngineDialog = onOpenEnvironmentalEngineDialog,
+        onOpenWelcomeWizard = onOpenWelcomeWizard
       )
     }
   }

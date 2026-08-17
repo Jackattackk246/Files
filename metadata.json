@@ -1,6 +1,6 @@
 {
-  "name": "Files",
-  "description": "Opens Android's built-in Files app and Document Manager with file browsing options and storage insights.",
+  "name": "File's",
+  "description": "Opens Android's built-in File's app and Document Manager with custom themes, wallpapers, and storage insights.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

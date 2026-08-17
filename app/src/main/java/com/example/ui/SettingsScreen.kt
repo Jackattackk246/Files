@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -53,43 +54,46 @@ import com.example.util.DashboardPreferences
 import com.example.util.EnvironmentalPreferences
 import com.example.util.FileManager
 import com.example.util.HapticFeedbackHelper
+import com.example.util.HapticManager
 import com.example.util.IconChangerEngine
 import com.example.util.LauncherIconVariant
 import com.example.util.ThemePreferences
+import com.example.ui.dialog.DeveloperPasswordAuthDialog
+import com.example.ui.section.DeveloperUtilitiesSubSection
+import com.example.security.DeveloperSecurityEngine
 import java.util.Calendar
 import kotlin.math.ceil
 import kotlin.math.min
 
 class SettingsPaginationEngine {
-    // FORCE OVERRIDE: Permanently expand the maximum layout registry threshold
-    private val absoluteTotalThemesCount = 50 
+    // Permanently expand the maximum layout registry threshold to 100 items across 10 pages
+    private val absoluteTotalThemesCount = 100 
     private val itemsPerPageThreshold = 10
 
     /**
-     * Absolute Primitive Page Hardcoding. Strips complex calculation objects 
-     * entirely to prevent the sandboxed preview simulator from crashing.
+     * Primitive Page Hardcoding supporting 10 pages x 10 items.
      */
     fun loadPrimitiveThemePageSlice(activePageNumber: Int): List<Int> {
-        // Hardcode primitive ID slices directly. Zero dynamic scanning overhead.
         return when (activePageNumber) {
             1 -> listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
             2 -> listOf(11, 12, 13, 14, 15, 16, 17, 18, 19, 20)
             3 -> listOf(21, 22, 23, 24, 25, 26, 27, 28, 29, 30)
             4 -> listOf(31, 32, 33, 34, 35, 36, 37, 38, 39, 40)
             5 -> listOf(41, 42, 43, 44, 45, 46, 47, 48, 49, 50)
+            6 -> listOf(51, 52, 53, 54, 55, 56, 57, 58, 59, 60)
+            7 -> listOf(61, 62, 63, 64, 65, 66, 67, 68, 69, 70)
+            8 -> listOf(71, 72, 73, 74, 75, 76, 77, 78, 79, 80)
+            9 -> listOf(81, 82, 83, 84, 85, 86, 87, 88, 89, 90)
+            10 -> listOf(91, 92, 93, 94, 95, 96, 97, 98, 99, 100)
             else -> listOf(1, 2, 3, 4, 5, 6, 7, 8, 9, 10)
         }
     }
 
     /**
-     * Dynamically calculates page allocations based on a 50-item universe.
-     * Erases the old hardcoded 15-item barrier to completely stop runtime crashes.
+     * Dynamically calculates page allocations based on a 100-item universe.
      */
     fun calculateDynamicPaginationBounds(requestedPage: Int): IntRange {
-        // Automatically determine total pages required (50 items / 10 per page = 5 pages)
         val totalExpectedPages = ceil(absoluteTotalThemesCount.toDouble() / itemsPerPageThreshold).toInt()
-        
-        // Safety lock: restrict page indexing strictly between 1 and 5
         val boundedPage = requestedPage.coerceIn(1, totalExpectedPages)
         
         val elementStartIndex = (boundedPage - 1) * itemsPerPageThreshold
@@ -103,7 +107,8 @@ enum class SettingsSubSection {
   MAIN,
   THEMES,
   LAYOUT,
-  PERMISSIONS
+  PERMISSIONS,
+  DEVELOPER
 }
 
 @Composable
@@ -117,6 +122,7 @@ fun SettingsScreen(
   onOpenSearchConfigDialog: () -> Unit,
   onOpenWallpaperEngineDialog: () -> Unit,
   onOpenEnvironmentalEngineDialog: (() -> Unit)? = null,
+  onOpenWelcomeWizard: (() -> Unit)? = null,
   initialSubSection: SettingsSubSection = SettingsSubSection.MAIN
 ) {
   val context = LocalContext.current
@@ -160,8 +166,10 @@ fun SettingsScreen(
           onNavigateToThemes = { currentSubSection = SettingsSubSection.THEMES },
           onNavigateToLayout = { currentSubSection = SettingsSubSection.LAYOUT },
           onNavigateToPermissions = { currentSubSection = SettingsSubSection.PERMISSIONS },
+          onNavigateToDeveloper = { currentSubSection = SettingsSubSection.DEVELOPER },
           onOpenSearchConfigDialog = onOpenSearchConfigDialog,
-          onOpenWallpaperEngineDialog = onOpenWallpaperEngineDialog
+          onOpenWallpaperEngineDialog = onOpenWallpaperEngineDialog,
+          onOpenWelcomeWizard = onOpenWelcomeWizard
         )
       }
 
@@ -188,6 +196,13 @@ fun SettingsScreen(
           onBack = { currentSubSection = SettingsSubSection.MAIN }
         )
       }
+
+      SettingsSubSection.DEVELOPER -> {
+        DeveloperUtilitiesSubSection(
+          onBack = { currentSubSection = SettingsSubSection.MAIN },
+          currentThemeMode = currentThemeMode
+        )
+      }
     }
   }
 }
@@ -201,14 +216,33 @@ private fun SettingsMainTab(
   onNavigateToThemes: () -> Unit,
   onNavigateToLayout: () -> Unit,
   onNavigateToPermissions: () -> Unit,
+  onNavigateToDeveloper: () -> Unit,
   onOpenSearchConfigDialog: () -> Unit,
-  onOpenWallpaperEngineDialog: () -> Unit
+  onOpenWallpaperEngineDialog: () -> Unit,
+  onOpenWelcomeWizard: (() -> Unit)? = null
 ) {
+  val context = LocalContext.current
   val activeThemeAccent = ThemeManager.getThemeAccentColor(currentThemeMode, customAccentColor)
   val cardContainer = ThemeManager.getAdaptiveCardContainerColor(currentThemeMode)
   val cardBorder = ThemeManager.getAdaptiveCardBorderColor(currentThemeMode)
   val primaryTextColor = ThemeManager.getAdaptivePrimaryTextColor(currentThemeMode)
   val secondaryTextColor = ThemeManager.getAdaptiveSecondaryTextColor(currentThemeMode)
+
+  var versionTapCount by remember { mutableStateOf(0) }
+  var lastTapTimestamp by remember { mutableStateOf(0L) }
+  var showDeveloperAuthDialog by remember { mutableStateOf(false) }
+
+  if (showDeveloperAuthDialog) {
+    DeveloperPasswordAuthDialog(
+      onSuccess = {
+        showDeveloperAuthDialog = false
+        onNavigateToDeveloper()
+      },
+      onDismiss = {
+        showDeveloperAuthDialog = false
+      }
+    )
+  }
 
   LazyColumn(
     modifier = Modifier
@@ -258,6 +292,63 @@ private fun SettingsMainTab(
       }
     }
 
+    // Onboarding / Welcome Wizard Card
+    if (onOpenWelcomeWizard != null) {
+      item {
+        Card(
+          onClick = onOpenWelcomeWizard,
+          modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
+            .border(1.dp, activeThemeAccent.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+            .testTag("settings_open_welcome_wizard_card"),
+          colors = CardDefaults.cardColors(containerColor = cardContainer)
+        ) {
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Box(
+              modifier = Modifier
+                .size(44.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(activeThemeAccent.copy(alpha = 0.15f)),
+              contentAlignment = Alignment.Center
+            ) {
+              Icon(
+                Icons.Default.AutoAwesome,
+                contentDescription = null,
+                tint = activeThemeAccent,
+                modifier = Modifier.size(24.dp)
+              )
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                "Personal Setup Wizard (File's)",
+                fontWeight = FontWeight.Bold,
+                fontSize = 15.sp,
+                color = primaryTextColor
+              )
+              Text(
+                "Configure profile, language, region, storage access & appearance",
+                fontSize = 12.sp,
+                color = secondaryTextColor
+              )
+            }
+            Icon(
+              Icons.AutoMirrored.Filled.ArrowForward,
+              contentDescription = null,
+              tint = secondaryTextColor,
+              modifier = Modifier.size(18.dp)
+            )
+          }
+        }
+      }
+    }
+
     // 2. Primary Navigation Options
     item {
       Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
@@ -270,9 +361,9 @@ private fun SettingsMainTab(
         // 1. Interface Themes Option Row
         SettingsNavCard(
           title = "Interface Themes",
-          subtitle = "15 Custom Canvas Palettes, Environmental Backdrop Engine & Color Wheel Picker",
+          subtitle = "Master 100 Design Options Catalog (Paginated 10/Page) & Custom Color Engine",
           icon = Icons.Default.Palette,
-          badge = "15 Palettes",
+          badge = "100 Styles",
           testTag = "settings_row_interface_themes",
           onClick = onNavigateToThemes,
           accentColor = activeThemeAccent,
@@ -410,6 +501,120 @@ private fun SettingsMainTab(
       }
     }
 
+    // Power User Utilities Sub-Section Row Panel
+    item {
+      var instantUiSnapping by remember { mutableStateOf(false) }
+      var forceExternalStorageWrite by remember { mutableStateOf(false) }
+      var hardOrientationLock by remember { mutableStateOf(false) }
+
+      Card(
+        modifier = Modifier
+          .fillMaxWidth()
+          .testTag("power_user_utilities_panel"),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, cardBorder),
+        colors = CardDefaults.cardColors(containerColor = cardContainer)
+      ) {
+        Column(
+          modifier = Modifier.padding(16.dp),
+          verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+          Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+          ) {
+            Icon(
+              Icons.Default.Bolt,
+              contentDescription = null,
+              tint = activeThemeAccent,
+              modifier = Modifier.size(20.dp)
+            )
+            Text(
+              "Power User Utilities",
+              fontWeight = FontWeight.Bold,
+              style = MaterialTheme.typography.titleSmall,
+              color = primaryTextColor
+            )
+          }
+
+          // 1. Instant UI Snapping
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .testTag("toggle_instant_ui_snapping"),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                "Instant UI Snapping",
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                color = primaryTextColor
+              )
+              Text(
+                "Overrides configuration window metrics to set transitions to 0.0x for zero animation lag",
+                style = MaterialTheme.typography.labelSmall.copy(color = secondaryTextColor)
+              )
+            }
+            Switch(
+              checked = instantUiSnapping,
+              onCheckedChange = { instantUiSnapping = it }
+            )
+          }
+
+          // 2. Force External Storage Write
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .testTag("toggle_force_external_storage_write"),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                "Force External Storage Write",
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                color = primaryTextColor
+              )
+              Text(
+                "Maps SAF paths to automatically force file movements to external SD cards/OTG stick directories",
+                style = MaterialTheme.typography.labelSmall.copy(color = secondaryTextColor)
+              )
+            }
+            Switch(
+              checked = forceExternalStorageWrite,
+              onCheckedChange = { forceExternalStorageWrite = it }
+            )
+          }
+
+          // 3. Hard Orientation Lock
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .testTag("toggle_hard_orientation_lock"),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            Column(modifier = Modifier.weight(1f)) {
+              Text(
+                "Hard Orientation Lock",
+                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                color = primaryTextColor
+              )
+              Text(
+                "Static window manager locks to completely force layout scales regardless of physical sensor movements",
+                style = MaterialTheme.typography.labelSmall.copy(color = secondaryTextColor)
+              )
+            }
+            Switch(
+              checked = hardOrientationLock,
+              onCheckedChange = { hardOrientationLock = it }
+            )
+          }
+        }
+      }
+    }
+
     // 4. Live Storage Capacity Meters
     item {
       Card(
@@ -479,7 +684,36 @@ private fun SettingsMainTab(
     // 5. Version Info
     item {
       Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+          .fillMaxWidth()
+          .clip(RoundedCornerShape(18.dp))
+          .clickable {
+            val now = System.currentTimeMillis()
+            if (now - lastTapTimestamp > 3500L) {
+              versionTapCount = 1
+            } else {
+              versionTapCount++
+            }
+            lastTapTimestamp = now
+
+            if (DeveloperSecurityEngine.isPermanentKarmaBrickActive(context)) {
+              Toast.makeText(context, "Nice try!", Toast.LENGTH_SHORT).show()
+              return@clickable
+            }
+
+            if (versionTapCount in 7..9) {
+              val remaining = 10 - versionTapCount
+              Toast.makeText(
+                context,
+                "You are now $remaining ${if (remaining == 1) "step" else "steps"} away from becoming a developer.",
+                Toast.LENGTH_SHORT
+              ).show()
+            } else if (versionTapCount >= 10) {
+              versionTapCount = 0
+              showDeveloperAuthDialog = true
+            }
+          }
+          .testTag("txt_about_version_number"),
         shape = RoundedCornerShape(18.dp),
         border = BorderStroke(1.dp, cardBorder),
         colors = CardDefaults.cardColors(containerColor = cardContainer)
@@ -610,13 +844,73 @@ private fun LayoutConfigurationsSubSection(
               HapticFeedbackHelper.performToggleFeedback(context)
               isEditModeUnlocked = it
               DashboardPreferences.setEditModeUnlocked(context, it)
-              Toast.makeText(
-                context,
-                if (it) "Dashboard Edit Mode Unlocked" else "Dashboard Edit Mode Locked",
-                Toast.LENGTH_SHORT
-              ).show()
             },
             modifier = Modifier.testTag("edit_mode_switch")
+          )
+        }
+      }
+    }
+
+    // Windows 11 Desktop Workspace Layout Toggle Card
+    item {
+      var isDesktopForced by remember {
+        mutableStateOf(com.aistudio.fileslauncher.ui.ThemeSynchronizationBridge.isForcedWindows11DesktopEnabled(context))
+      }
+      Card(
+        modifier = Modifier
+          .fillMaxWidth()
+          .testTag("desktop_workspace_toggle_card"),
+        shape = RoundedCornerShape(18.dp),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+      ) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(16.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+          Row(
+            modifier = Modifier.weight(1f),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+          ) {
+            Box(
+              modifier = Modifier
+                .size(40.dp)
+                .clip(RoundedCornerShape(10.dp))
+                .background(if (isDesktopForced) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.primaryContainer),
+              contentAlignment = Alignment.Center
+            ) {
+              Icon(
+                Icons.Default.DesktopWindows,
+                contentDescription = null,
+                tint = if (isDesktopForced) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp)
+              )
+            }
+            Column {
+              Text(
+                "Windows 11 Desktop Workspace",
+                fontWeight = FontWeight.Bold,
+                style = MaterialTheme.typography.bodyMedium
+              )
+              Text(
+                if (isDesktopForced) "Forced Windows 11 desktop canvas active on tablet/standard views" else "Standard mobile/tablet viewport profile",
+                style = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant)
+              )
+            }
+          }
+
+          Switch(
+            checked = isDesktopForced,
+            onCheckedChange = {
+              HapticFeedbackHelper.performToggleFeedback(context)
+              isDesktopForced = it
+              com.aistudio.fileslauncher.ui.ThemeSynchronizationBridge.setForcedWindows11DesktopEnabled(context, it)
+            },
+            modifier = Modifier.testTag("desktop_workspace_switch")
           )
         }
       }
@@ -1108,8 +1402,12 @@ private fun SettingsNavCard(
   primaryTextColor: Color = MaterialTheme.colorScheme.onSurface,
   secondaryTextColor: Color = MaterialTheme.colorScheme.onSurfaceVariant
 ) {
+  val context = LocalContext.current
   Card(
-    onClick = onClick,
+    onClick = {
+      HapticManager.navigationClick(context)
+      onClick()
+    },
     modifier = Modifier
       .fillMaxWidth()
       .testTag(testTag),

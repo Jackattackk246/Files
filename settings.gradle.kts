@@ -22,6 +22,6 @@ dependencyResolutionManagement {
   }
 }
 
-rootProject.name = "Files Launcher"
+rootProject.name = "File's"
 
 include(":app")

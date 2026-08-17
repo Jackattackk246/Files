@@ -171,11 +171,17 @@ object ThemeManager {
           Color(0xFF151C18)  // Deep Moss Charcoal (Bottom 1.0)
         )
       )
+      AppThemeMode.SAMSUNG_EXPERIENCE -> Brush.verticalGradient(
+        colors = listOf(
+          Color(0xFF0F111A), // Deep Midnight Galaxy Void (Top 0.0)
+          Color(0xFF1E2022)  // Matte Dark Charcoal Core (Bottom 1.0)
+        )
+      )
     }
   }
 
   /**
-   * Primary accent color token for each of the 15 theme slots.
+   * Primary accent color token for each of the 16 theme slots.
    */
   fun getThemeAccentColor(themeMode: AppThemeMode, customAccentColor: Color? = null): Color {
     if (customAccentColor != null) return customAccentColor
@@ -195,6 +201,7 @@ object ThemeManager {
       AppThemeMode.NEON_SYNTHWAVE -> Color(0xFFF43F5E) // Radiant Hot Pink (#F43F5E)
       AppThemeMode.SOLAR_FLARE -> Color(0xFFF97316)    // Energetic Orange (#F97316)
       AppThemeMode.DESERT_SAGE -> Color(0xFF84CC16)    // Pale Olive Lime (#84CC16)
+      AppThemeMode.SAMSUNG_EXPERIENCE -> Color(0xFF1473E6) // Dream UX Blue (#1473E6)
     }
   }
 
@@ -295,6 +302,7 @@ object ThemeManager {
       AppThemeMode.NEON_SYNTHWAVE -> Color(0xCC241E4E)
       AppThemeMode.SOLAR_FLARE -> Color(0xCC2A2A30)
       AppThemeMode.DESERT_SAGE -> Color(0xCC2A3831)
+      AppThemeMode.SAMSUNG_EXPERIENCE -> Color(0xCC1E2022)
     }
   }
 
@@ -318,6 +326,7 @@ object ThemeManager {
       AppThemeMode.NEON_SYNTHWAVE -> Color(0x66F43F5E)
       AppThemeMode.SOLAR_FLARE -> Color(0x66F97316)
       AppThemeMode.DESERT_SAGE -> Color(0x6684CC16)
+      AppThemeMode.SAMSUNG_EXPERIENCE -> Color(0x448EC5FC)
     }
   }
 

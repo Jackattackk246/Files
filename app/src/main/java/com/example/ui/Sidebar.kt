@@ -4,7 +4,6 @@ import android.content.res.Configuration
 import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -13,12 +12,15 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,7 +29,9 @@ import com.example.model.EnvironmentalSeason
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.ThemeManager
 import com.example.util.FileManager
-import com.example.util.HapticFeedbackHelper
+import com.example.util.HapticManager
+import com.example.util.UsbStorageManager
+import java.io.File
 
 enum class NavigationNode {
   DASHBOARD,
@@ -49,15 +53,20 @@ fun SidebarPanel(
   onOpenSearchConfigDialog: (() -> Unit)? = null,
   onOpenWallpaperEngineDialog: (() -> Unit)? = null,
   onOpenEnvironmentalEngineDialog: (() -> Unit)? = null,
+  onOpenUsbStorage: ((File?) -> Unit)? = null,
+  onRequestUsbSafAuth: (() -> Unit)? = null,
   modifier: Modifier = Modifier
 ) {
+  val context = LocalContext.current
+  val desktopPalette by com.aistudio.fileslauncher.ui.ThemeSynchronizationBridge.paletteState.collectAsState()
   val isLight = ThemeManager.isLightBackgroundProfile(themeMode, season)
   val primaryTextColor = ThemeManager.getAdaptivePrimaryTextColor(themeMode, season)
   val secondaryTextColor = ThemeManager.getAdaptiveSecondaryTextColor(themeMode, season)
-  val accentColor = ThemeManager.getThemeAccentColor(themeMode, customAccentColor)
-  val containerBg = ThemeManager.getAdaptiveCardContainerColor(themeMode, season)
+  val accentColor = customAccentColor ?: desktopPalette.customAccentColor
+  val containerBg = if (desktopPalette.isDesktopCanvasActive) desktopPalette.sidebarPaneColor else ThemeManager.getAdaptiveCardContainerColor(themeMode, season)
   val cardBorder = ThemeManager.getAdaptiveCardBorderColor(themeMode, season)
   val dividerColor = if (isLight) Color(0x221C1C1E) else Color.White.copy(alpha = 0.20f)
+  val usbState by UsbStorageManager.usbState.collectAsState()
 
   Surface(
     modifier = modifier
@@ -73,7 +82,7 @@ fun SidebarPanel(
       verticalArrangement = Arrangement.SpaceBetween
     ) {
       Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-        // App Title Header - Adaptive contrast typography
+        // App Title Header
         Row(
           verticalAlignment = Alignment.CenterVertically,
           horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -81,10 +90,9 @@ fun SidebarPanel(
         ) {
           Box(
             modifier = Modifier
-              .size(42.dp)
-              .clip(CircleShape)
-              .background(accentColor.copy(alpha = 0.20f))
-              .border(1.dp, accentColor.copy(alpha = 0.40f), CircleShape),
+              .size(40.dp)
+              .clip(RoundedCornerShape(10.dp))
+              .background(accentColor.copy(alpha = 0.20f)),
             contentAlignment = Alignment.Center
           ) {
             Icon(
@@ -213,87 +221,204 @@ fun SidebarPanel(
         }
       }
 
-      // Native Device Type Query for Hardware Factor
+      // Hardware Form Factor Query
       val configuration = LocalConfiguration.current
       val isTablet = (configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK) >= Configuration.SCREENLAYOUT_SIZE_LARGE ||
           Build.MODEL.contains("Tab", ignoreCase = true) ||
           Build.MODEL.contains("SM-X", ignoreCase = true)
       val deviceIcon = if (isTablet) Icons.Default.Tablet else Icons.Default.Smartphone
 
-      // Live StatFs Partition Tracker Metric Card
-      Card(
-        modifier = Modifier
-          .fillMaxWidth()
-          .testTag("hardware_storage_tracker_card"),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.dp, cardBorder),
-        colors = CardDefaults.cardColors(containerColor = containerBg)
-      ) {
-        Column(
-          modifier = Modifier.padding(14.dp),
-          verticalArrangement = Arrangement.spacedBy(8.dp)
+      // Storage Hubs Stack: OTG USB block + Device Internal Storage Tracker
+      Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        // OTG USB Native Storage Hub Block
+        Card(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+              HapticManager.navigationClick(context)
+              if (usbState.isConnected) {
+                if (!usbState.isSafAuthorized && onRequestUsbSafAuth != null) {
+                  onRequestUsbSafAuth()
+                } else if (onOpenUsbStorage != null) {
+                  onOpenUsbStorage(usbState.mountPath)
+                }
+              } else if (onRequestUsbSafAuth != null) {
+                onRequestUsbSafAuth()
+              }
+            }
+            .testTag("otg_usb_storage_sidebar_card"),
+          shape = RoundedCornerShape(16.dp),
+          border = BorderStroke(
+            1.dp,
+            if (usbState.isConnected) accentColor.copy(alpha = 0.6f) else cardBorder
+          ),
+          colors = CardDefaults.cardColors(
+            containerColor = if (usbState.isConnected) accentColor.copy(alpha = 0.12f) else containerBg
+          )
         ) {
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+          Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
           ) {
             Row(
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(6.dp)
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
             ) {
-              Icon(
-                imageVector = deviceIcon,
-                contentDescription = null,
-                tint = accentColor,
-                modifier = Modifier.size(18.dp)
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+              ) {
+                Icon(
+                  imageVector = Icons.Default.Usb,
+                  contentDescription = "OTG USB Drive",
+                  tint = if (usbState.isConnected) accentColor else secondaryTextColor,
+                  modifier = Modifier.size(18.dp)
+                )
+                Column {
+                  Text(
+                    text = if (usbState.isConnected) usbState.volumeLabel else "OTG USB Drive",
+                    style = MaterialTheme.typography.labelMedium.copy(
+                      fontWeight = FontWeight.Bold,
+                      color = primaryTextColor
+                    )
+                  )
+                  Text(
+                    text = if (usbState.isConnected) {
+                      if (usbState.isSafAuthorized) "SAF Mounted & Ready" else "Tap to Authorize SAF"
+                    } else "Port Standby / Plug OTG",
+                    style = MaterialTheme.typography.labelSmall.copy(
+                      color = if (usbState.isConnected && !usbState.isSafAuthorized) accentColor else secondaryTextColor,
+                      fontSize = 9.5.sp
+                    )
+                  )
+                }
+              }
+
+              Surface(
+                shape = RoundedCornerShape(6.dp),
+                color = if (usbState.isConnected) accentColor.copy(alpha = 0.25f) else Color.Gray.copy(alpha = 0.2f)
+              ) {
+                Text(
+                  text = if (usbState.isConnected) usbState.totalGbFormatted else "Standby",
+                  style = MaterialTheme.typography.labelSmall.copy(
+                    color = if (usbState.isConnected) accentColor else secondaryTextColor,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 9.5.sp
+                  ),
+                  modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                )
+              }
+            }
+
+            if (usbState.isConnected && usbState.totalBytes > 0) {
+              LinearProgressIndicator(
+                progress = { usbState.usedRatio },
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .height(6.dp)
+                  .clip(CircleShape),
+                color = accentColor,
+                trackColor = if (isLight) Color(0x33000000) else Color(0x44FFFFFF)
               )
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+              ) {
+                Text(
+                  text = usbState.freeGbFormatted,
+                  style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 9.sp,
+                    color = secondaryTextColor
+                  )
+                )
+                Text(
+                  text = if (usbState.isSafAuthorized) "Read/Write" else "Needs SAF",
+                  style = MaterialTheme.typography.labelSmall.copy(
+                    fontSize = 9.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (usbState.isSafAuthorized) accentColor else Color(0xFFEF4444)
+                  )
+                )
+              }
+            }
+          }
+        }
+
+        // Live StatFs Partition Tracker Metric Card
+        Card(
+          modifier = Modifier
+            .fillMaxWidth()
+            .testTag("hardware_storage_tracker_card"),
+          shape = RoundedCornerShape(16.dp),
+          border = BorderStroke(1.dp, cardBorder),
+          colors = CardDefaults.cardColors(containerColor = containerBg)
+        ) {
+          Column(
+            modifier = Modifier.padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+          ) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically
+            ) {
+              Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+              ) {
+                Icon(
+                  imageVector = deviceIcon,
+                  contentDescription = null,
+                  tint = accentColor,
+                  modifier = Modifier.size(18.dp)
+                )
+                Text(
+                  text = "Device Storage",
+                  style = MaterialTheme.typography.labelLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    color = primaryTextColor
+                  )
+                )
+              }
               Text(
-                text = "Device Storage",
-                style = MaterialTheme.typography.labelLarge.copy(
-                  fontWeight = FontWeight.Bold,
-                  color = primaryTextColor
+                text = storageMetrics.totalGbFormatted,
+                style = MaterialTheme.typography.labelSmall.copy(
+                  color = primaryTextColor,
+                  fontWeight = FontWeight.Bold
                 )
               )
             }
-            Text(
-              text = storageMetrics.totalGbFormatted,
-              style = MaterialTheme.typography.labelSmall.copy(
-                color = primaryTextColor,
-                fontWeight = FontWeight.Bold
-              )
-            )
-          }
 
-          // Device storage metrics bar - high contrast fill & track
-          LinearProgressIndicator(
-            progress = { storageMetrics.usedRatio },
-            modifier = Modifier
-              .fillMaxWidth()
-              .height(8.dp)
-              .clip(CircleShape),
-            color = accentColor,
-            trackColor = if (isLight) Color(0x33000000) else Color(0x44FFFFFF)
-          )
+            LinearProgressIndicator(
+              progress = { storageMetrics.usedRatio },
+              modifier = Modifier
+                .fillMaxWidth()
+                .height(8.dp)
+                .clip(CircleShape),
+              color = accentColor,
+              trackColor = if (isLight) Color(0x33000000) else Color(0x44FFFFFF)
+            )
 
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-          ) {
-            Text(
-              text = "${storageMetrics.usedGbFormatted} Used",
-              style = MaterialTheme.typography.bodySmall.copy(
-                fontWeight = FontWeight.Medium,
-                color = primaryTextColor
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+              Text(
+                text = "${storageMetrics.usedGbFormatted} Used",
+                style = MaterialTheme.typography.bodySmall.copy(
+                  fontWeight = FontWeight.Medium,
+                  color = primaryTextColor
+                )
               )
-            )
-            Text(
-              text = "${storageMetrics.freeGbFormatted} Free",
-              style = MaterialTheme.typography.bodySmall.copy(
-                fontWeight = FontWeight.Medium,
-                color = secondaryTextColor
+              Text(
+                text = "${storageMetrics.freeGbFormatted} Free",
+                style = MaterialTheme.typography.bodySmall.copy(
+                  fontWeight = FontWeight.Medium,
+                  color = secondaryTextColor
+                )
               )
-            )
+            }
           }
         }
       }
@@ -311,7 +436,7 @@ private fun SidebarItem(
   accentColor: Color,
   onClick: () -> Unit
 ) {
-  val context = androidx.compose.ui.platform.LocalContext.current
+  val context = LocalContext.current
   val bgColor = if (selected) accentColor.copy(alpha = 0.20f) else Color.Transparent
   val iconTint = if (selected) accentColor else textColor
 
@@ -322,7 +447,7 @@ private fun SidebarItem(
       .clip(RoundedCornerShape(12.dp))
       .background(bgColor)
       .clickable {
-        HapticFeedbackHelper.performToggleFeedback(context)
+        HapticManager.navigationClick(context)
         onClick()
       }
       .padding(horizontal = 12.dp)

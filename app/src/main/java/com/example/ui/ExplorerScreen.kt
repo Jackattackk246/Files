@@ -31,12 +31,16 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.model.FileItem
+import com.example.model.FileSortOrder
 import com.example.model.SearchLocation
 import com.example.model.SearchOptions
 import com.example.model.SearchStyle
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.ThemeManager
 import com.example.util.FileManager
+import com.example.util.HapticManager
+import com.example.util.HapticFeedbackHelper
+import com.example.util.LocalFileQueryEngine
 import java.io.File
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -61,12 +65,28 @@ fun ExplorerScreen(
   val selectedFiles = remember { mutableStateListOf<FileItem>() }
   var isMultiSelectMode by remember { mutableStateOf(false) }
 
+  // Sorting state using LocalFileQueryEngine with 100% offline memory Comparator
+  var currentSortOrder by remember { mutableStateOf(FileSortOrder.DEFAULT) }
+  var isSortDropdownExpanded by remember { mutableStateOf(false) }
+
+  // Integrate local offline AI semantic ranking if search query is active
+  val sortedFilesList = remember(filesList, currentSortOrder, searchQuery) {
+    val sorted = LocalFileQueryEngine.sortFiles(filesList, currentSortOrder)
+    if (searchQuery.isNotBlank()) {
+      com.example.ai.LocalOfflineAiModule.rankFilesBySemanticRelevance(sorted, searchQuery)
+    } else {
+      sorted
+    }
+  }
+
   val isLight = ThemeManager.isLightBackgroundProfile(themeMode)
   val primaryTextColor = ThemeManager.getAdaptivePrimaryTextColor(themeMode)
   val secondaryTextColor = ThemeManager.getAdaptiveSecondaryTextColor(themeMode)
   val accentColor = ThemeManager.getThemeAccentColor(themeMode, customAccentColor)
   val cardContainer = ThemeManager.getAdaptiveCardContainerColor(themeMode)
   val cardBorder = ThemeManager.getAdaptiveCardBorderColor(themeMode)
+  // Matching existing crimson theme border variable
+  val crimsonBorderColor = ThemeManager.getAdaptiveCardBorderColor(AppThemeMode.CRIMSON_FURY)
 
   Column(
     modifier = Modifier
@@ -96,6 +116,125 @@ fun ExplorerScreen(
         FileManager.openPathSAFBackdoor(context, currentDirectory.absolutePath)
       }
     )
+
+    // Sorting & Quick Filter Toolbar with Native Spinner / Dropdown Menu
+    Surface(
+      modifier = Modifier.fillMaxWidth(),
+      color = cardContainer.copy(alpha = 0.65f),
+      border = BorderStroke(1.dp, crimsonBorderColor.copy(alpha = 0.40f))
+    ) {
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 16.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+      ) {
+        Row(
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+          Icon(
+            imageVector = Icons.Default.Folder,
+            contentDescription = null,
+            tint = accentColor,
+            modifier = Modifier.size(16.dp)
+          )
+          Text(
+            text = "${sortedFilesList.size} items",
+            style = MaterialTheme.typography.labelMedium.copy(
+              color = secondaryTextColor,
+              fontWeight = FontWeight.Medium
+            )
+          )
+        }
+
+        // Lightweight Standard Native Spinner Dropdown List
+        Box {
+          OutlinedButton(
+            onClick = {
+              HapticFeedbackHelper.performToggleFeedback(context)
+              isSortDropdownExpanded = true
+            },
+            shape = RoundedCornerShape(8.dp),
+            border = BorderStroke(1.dp, crimsonBorderColor),
+            colors = ButtonDefaults.outlinedButtonColors(
+              containerColor = cardContainer
+            ),
+            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp),
+            modifier = Modifier
+              .defaultMinSize(minWidth = 56.dp, minHeight = 36.dp)
+              .testTag("sort_spinner_button")
+          ) {
+            Icon(
+              imageVector = Icons.Default.Sort,
+              contentDescription = "Sort Files",
+              tint = crimsonBorderColor,
+              modifier = Modifier.size(15.dp)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+              text = currentSortOrder.shortName,
+              fontSize = 12.sp,
+              fontWeight = FontWeight.Bold,
+              color = primaryTextColor
+            )
+            Icon(
+              imageVector = Icons.Default.ArrowDropDown,
+              contentDescription = null,
+              tint = primaryTextColor,
+              modifier = Modifier.size(16.dp)
+            )
+          }
+
+          DropdownMenu(
+            expanded = isSortDropdownExpanded,
+            onDismissRequest = { isSortDropdownExpanded = false },
+            modifier = Modifier
+              .background(cardContainer)
+              .border(1.dp, crimsonBorderColor, RoundedCornerShape(8.dp))
+              .testTag("sort_dropdown_menu")
+          ) {
+            FileSortOrder.values().forEach { orderOption ->
+              val isSelected = orderOption == currentSortOrder
+              DropdownMenuItem(
+                text = {
+                  Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                  ) {
+                    Text(
+                      text = orderOption.label,
+                      style = MaterialTheme.typography.bodySmall.copy(
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                        color = if (isSelected) crimsonBorderColor else primaryTextColor
+                      )
+                    )
+                    if (isSelected) {
+                      Icon(
+                        imageVector = Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = crimsonBorderColor,
+                        modifier = Modifier.size(16.dp)
+                      )
+                    }
+                  }
+                },
+                onClick = {
+                  HapticFeedbackHelper.performToggleFeedback(context)
+                  currentSortOrder = orderOption
+                  isSortDropdownExpanded = false
+                },
+                modifier = Modifier
+                  .defaultMinSize(minHeight = 48.dp)
+                  .testTag("sort_option_${orderOption.name}")
+              )
+            }
+          }
+        }
+      }
+    }
 
     // Batch Multi-Select Action Bar if active
     if (isMultiSelectMode && selectedFiles.isNotEmpty()) {
@@ -143,7 +282,7 @@ fun ExplorerScreen(
     }
 
     // Directory Tree File Items List
-    if (filesList.isEmpty()) {
+    if (sortedFilesList.isEmpty()) {
       Box(
         modifier = Modifier
           .weight(1f)
@@ -171,7 +310,7 @@ fun ExplorerScreen(
         verticalArrangement = Arrangement.spacedBy(8.dp)
       ) {
         items(
-          items = filesList,
+          items = sortedFilesList,
           key = { it.path }
         ) { item ->
           val isHighlighted = highlightFilePath != null && item.path == highlightFilePath
@@ -194,6 +333,7 @@ fun ExplorerScreen(
               .clip(RoundedCornerShape(14.dp))
               .combinedClickable(
                 onClick = {
+                  HapticManager.selectionTick(context)
                   if (isMultiSelectMode) {
                     if (isSelected) selectedFiles.remove(item) else selectedFiles.add(item)
                     if (selectedFiles.isEmpty()) isMultiSelectMode = false
@@ -202,6 +342,7 @@ fun ExplorerScreen(
                   }
                 },
                 onLongClick = {
+                  HapticManager.longPress(context)
                   if (!isMultiSelectMode) {
                     isMultiSelectMode = true
                     selectedFiles.add(item)
@@ -319,10 +460,11 @@ private fun PathBreadcrumbsBar(
     list
   }
 
+  val desktopPalette by com.aistudio.fileslauncher.ui.ThemeSynchronizationBridge.paletteState.collectAsState()
   val primaryTextColor = ThemeManager.getAdaptivePrimaryTextColor(themeMode)
   val secondaryTextColor = ThemeManager.getAdaptiveSecondaryTextColor(themeMode)
-  val accentColor = ThemeManager.getThemeAccentColor(themeMode, customAccentColor)
-  val cardContainer = ThemeManager.getAdaptiveCardContainerColor(themeMode)
+  val accentColor = customAccentColor ?: desktopPalette.customAccentColor
+  val cardContainer = if (desktopPalette.isDesktopCanvasActive) desktopPalette.globalNavBarFrameColor else ThemeManager.getAdaptiveCardContainerColor(themeMode)
   val cardBorder = ThemeManager.getAdaptiveCardBorderColor(themeMode)
 
   Surface(
@@ -439,6 +581,68 @@ private fun SearchHeaderSection(
         shape = RoundedCornerShape(16.dp),
         singleLine = true
       )
+
+      // Offline AI Smart Search Input Suggestions Array
+      val currentContext = LocalContext.current
+      val aiState by com.example.ai.LocalOfflineAiModule.stateFlow.collectAsState()
+      if (aiState.isInitialized && aiState.activeCategorySuggestions.isNotEmpty()) {
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+          horizontalArrangement = Arrangement.spacedBy(6.dp),
+          verticalAlignment = Alignment.CenterVertically
+        ) {
+          aiState.activeCategorySuggestions.forEach { suggestion ->
+            val isSelected = searchQuery.contains(suggestion.queryToken, ignoreCase = true) ||
+                searchQuery.equals(suggestion.label, ignoreCase = true)
+            Surface(
+              modifier = Modifier
+                .clip(RoundedCornerShape(12.dp))
+                .clickable {
+                  HapticFeedbackHelper.performToggleFeedback(currentContext)
+                  if (isSelected) {
+                    onSearchQueryChanged("")
+                  } else {
+                    onSearchQueryChanged(suggestion.label.lowercase())
+                  }
+                }
+                .testTag("smart_search_chip_${suggestion.label.lowercase()}"),
+              color = if (isSelected) accentColor.copy(alpha = 0.35f) else cardContainer,
+              border = BorderStroke(1.dp, if (isSelected) accentColor else ThemeManager.getAdaptiveCardBorderColor(themeMode)),
+              shape = RoundedCornerShape(12.dp)
+            ) {
+              Row(
+                modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(4.dp)
+              ) {
+                Icon(
+                  imageVector = when (suggestion.iconType) {
+                    "image" -> Icons.Default.Image
+                    "video" -> Icons.Default.Videocam
+                    "audio" -> Icons.Default.Audiotrack
+                    "doc" -> Icons.Default.Description
+                    "zip" -> Icons.Default.FolderZip
+                    "apk" -> Icons.Default.Android
+                    "text" -> Icons.Default.FindInPage
+                    else -> Icons.Default.AutoAwesome
+                  },
+                  contentDescription = null,
+                  tint = if (isSelected) accentColor else secondaryTextColor,
+                  modifier = Modifier.size(13.dp)
+                )
+                Text(
+                  text = suggestion.label,
+                  fontSize = 11.sp,
+                  fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                  color = if (isSelected) primaryTextColor else secondaryTextColor
+                )
+              }
+            }
+          }
+        }
+      }
 
       Row(
         modifier = Modifier.fillMaxWidth(),

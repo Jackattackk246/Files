@@ -4,7 +4,8 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Galaxy S8 / Experience squircle background -->
     <path
-        android:fillColor="#14181F"
-        android:pathData="M0,0h108v108h-108z" />
+        android:fillColor="#202224"
+        android:pathData="M 24,0 C 6,0 0,6 0,24 L 0,84 C 0,102 6,108 24,108 L 84,108 C 102,108 108,102 108,84 L 108,24 C 108,6 102,0 84,0 Z" />
 </vector>

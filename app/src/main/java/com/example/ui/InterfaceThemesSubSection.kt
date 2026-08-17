@@ -5,6 +5,7 @@ import android.widget.Toast
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +18,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,11 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowForward
 import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ColorLens
-import androidx.compose.material.icons.filled.DarkMode
-import androidx.compose.material.icons.filled.LightMode
-import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.RestartAlt
-import androidx.compose.material.icons.filled.Style
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -66,6 +65,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.AppThemeMode
 import com.example.ui.theme.ThemeManager
+import com.example.util.HapticManager
 import com.example.util.IconChangerEngine
 import com.example.util.LauncherIconVariant
 import com.example.util.ThemePreferences
@@ -74,11 +74,10 @@ import kotlin.math.max
 import kotlin.math.min
 
 /**
- * Interface Themes Sub-Section with strict layout pagination threshold:
- * Enforces a maximum of 10 theme card elements visible on screen per page.
- * Clips layout overhead by strictly initializing graphic vectors for the 10 active indices
- * intersecting the current window view slot while dynamically detaching background drawing loops
- * and freeing shared memory allocations (ashmem) for any remaining components outside the active ten-card threshold.
+ * Interface Themes Sub-Section with Master 100 Design Options Catalog:
+ * - Direct index binding to the master compiler loop: Every tap activates both the launcher alias & the exact custom color profile.
+ * - Compressed slim-list structure using wrap_content parameters and zero excessive padding.
+ * - Integrated HapticManager providing tactile pulses on navigation, selection, and theme switching.
  */
 @Composable
 fun InterfaceThemesSubSection(
@@ -101,10 +100,10 @@ fun InterfaceThemesSubSection(
   var selectedDesignCategoryFilter by remember { mutableStateOf("All") }
   val allVariants = remember { IconChangerEngine.ICON_VARIANTS }
   val designCategories = remember {
-    listOf("All", "Core Baselines", "Cyberpunk & Retro", "Industrial & Dev", "Premium Materials", "Pop-Culture & Special")
+    listOf("All", "Canvas Themes", "Core Baselines", "Cyberpunk & Retro", "Industrial & Dev", "Premium Materials", "Pop-Culture & Special", "Specialty Grid", "Master Series")
   }
 
-  // Hard Pagination Threshold: Exactly 10 items max per active window view slot
+  // Rigid Pagination Setting: Exactly 10 items max per page -> 100 items = 10 pages
   val pageSize = 10
   var currentCatalogPage by remember { mutableIntStateOf(0) }
 
@@ -127,7 +126,7 @@ fun InterfaceThemesSubSection(
   // Ensure currentCatalogPage stays within bounds when filter changes
   val safeCurrentPage = min(currentCatalogPage, max(0, totalPages - 1))
 
-  // Strict 10-Item Active Window Slice (Detaches non-intersecting items from memory & draw loop)
+  // Strict 10-Item Active Window Slice
   val activeWindowTenCardSlice by remember(filteredVariants, safeCurrentPage) {
     derivedStateOf {
       val startIndex = safeCurrentPage * pageSize
@@ -140,23 +139,43 @@ fun InterfaceThemesSubSection(
     }
   }
 
+  // Master Style Compiler Loop Activation Function
+  fun activateThemeItem(variant: LauncherIconVariant) {
+    activeLauncherIconId = variant.id
+    HapticManager.themeSwitchPulse(context)
+
+    // Bridge notification with rigid color listener pass across Windows 11 Desktop Canvas & Tablet Toggle Profiles
+    com.aistudio.fileslauncher.ui.ThemeSynchronizationBridge.notifyThemeVariantSelected(
+      context = context,
+      variant = variant,
+      onThemeModeChanged = onThemeModeChanged,
+      onCustomAccentColorChanged = onCustomAccentColorChanged
+    )
+  }
+
   LazyColumn(
     modifier = Modifier
       .fillMaxSize()
-      .padding(horizontal = 16.dp)
+      .padding(horizontal = 12.dp)
       .testTag("interface_themes_sub_screen"),
-    verticalArrangement = Arrangement.spacedBy(16.dp),
-    contentPadding = PaddingValues(top = 12.dp, bottom = 16.dp)
+    verticalArrangement = Arrangement.spacedBy(10.dp),
+    contentPadding = PaddingValues(top = 8.dp, bottom = 12.dp)
   ) {
     // 1. Sub-Section Header with Back Button
     item {
       Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
-        modifier = Modifier.padding(vertical = 4.dp)
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = Modifier
+          .fillMaxWidth()
+          .wrapContentHeight()
+          .padding(vertical = 2.dp)
       ) {
         IconButton(
-          onClick = onBack,
+          onClick = {
+            HapticManager.navigationClick(context)
+            onBack()
+          },
           modifier = Modifier.testTag("themes_back_button")
         ) {
           Icon(
@@ -165,248 +184,167 @@ fun InterfaceThemesSubSection(
             tint = primaryTextColor
           )
         }
-        Column {
+        Column(modifier = Modifier.weight(1f)) {
           Text(
             text = "Interface Themes",
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 22.sp),
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold, fontSize = 20.sp),
             color = primaryTextColor
           )
           Text(
-            text = "15 Custom Canvas Palettes & Master 50 Design Options Catalog",
-            style = MaterialTheme.typography.labelMedium.copy(color = secondaryTextColor)
-          )
-        }
-      }
-    }
-
-    // 2. 15 Presets Selection Grid Card
-    item {
-      Card(
-        modifier = Modifier
-          .fillMaxWidth()
-          .testTag("theme_presets_card"),
-        shape = RoundedCornerShape(20.dp),
-        border = BorderStroke(1.dp, cardBorder),
-        colors = CardDefaults.cardColors(containerColor = cardContainer)
-      ) {
-        Column(
-          modifier = Modifier.padding(16.dp),
-          verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-          Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-          ) {
-            Icon(Icons.Default.Palette, contentDescription = null, tint = activeThemeAccent, modifier = Modifier.size(20.dp))
-            Text("Canvas Color Themes (15 Styles)", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, color = primaryTextColor)
-          }
-
-          Text(
-            "Select one of 15 handcrafted UI themes with custom typography, surfaces, and accent contrasts.",
+            text = "Master 100 Design Options Catalog (Paginated 10/Page)",
             style = MaterialTheme.typography.labelSmall.copy(color = secondaryTextColor)
           )
-
-          AppThemeMode.entries.chunked(2).forEach { rowModes ->
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-              rowModes.forEach { mode ->
-                val isSelected = currentThemeMode == mode
-                val themeAccent = ThemeManager.getThemeAccentColor(mode, null)
-
-                OutlinedButton(
-                  onClick = {
-                    onThemeModeChanged(mode)
-                    ThemePreferences.setSavedThemeMode(context, mode)
-                  },
-                  modifier = Modifier
-                    .weight(1f)
-                    .testTag("theme_btn_${mode.name}"),
-                  shape = RoundedCornerShape(12.dp),
-                  border = BorderStroke(
-                    if (isSelected) 2.dp else 1.dp,
-                    if (isSelected) activeThemeAccent else cardBorder
-                  ),
-                  colors = ButtonDefaults.outlinedButtonColors(
-                    containerColor = if (isSelected) activeThemeAccent.copy(alpha = 0.15f) else Color.Transparent
-                  ),
-                  contentPadding = PaddingValues(horizontal = 8.dp, vertical = 8.dp)
-                ) {
-                  Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
-                  ) {
-                    Box(
-                      modifier = Modifier
-                        .size(12.dp)
-                        .clip(CircleShape)
-                        .background(themeAccent)
-                    )
-                    Text(
-                      text = mode.displayName,
-                      fontSize = 11.sp,
-                      fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                      color = if (isSelected) activeThemeAccent else primaryTextColor,
-                      maxLines = 1,
-                      overflow = TextOverflow.Ellipsis
-                    )
-                  }
-                }
-              }
-              if (rowModes.size == 1) {
-                Spacer(modifier = Modifier.weight(1f))
-              }
-            }
-          }
         }
       }
     }
 
-    // 3. Environmental Engine Option Card
+    // 2. Environmental Engine Option Card
     if (onOpenEnvironmentalEngineDialog != null) {
       item {
         Card(
           modifier = Modifier
             .fillMaxWidth()
+            .wrapContentHeight()
             .testTag("environmental_engine_card"),
-          shape = RoundedCornerShape(20.dp),
+          shape = RoundedCornerShape(14.dp),
           border = BorderStroke(1.dp, cardBorder),
           colors = CardDefaults.cardColors(containerColor = cardContainer)
         ) {
           Row(
             modifier = Modifier
               .fillMaxWidth()
-              .padding(16.dp),
+              .padding(10.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
           ) {
             Row(
               verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(10.dp),
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
               modifier = Modifier.weight(1f)
             ) {
               Box(
                 modifier = Modifier
-                  .size(36.dp)
+                  .size(32.dp)
                   .clip(CircleShape)
                   .background(activeThemeAccent.copy(alpha = 0.2f)),
                 contentAlignment = Alignment.Center
               ) {
-                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = activeThemeAccent, modifier = Modifier.size(20.dp))
+                Icon(Icons.Default.AutoAwesome, contentDescription = null, tint = activeThemeAccent, modifier = Modifier.size(18.dp))
               }
               Column {
-                Text("Environmental Engine", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium, color = primaryTextColor)
-                Text("Real-time weather, day/night cycles & custom canvas particles", style = MaterialTheme.typography.labelSmall.copy(color = secondaryTextColor))
+                Text("Environmental Engine", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall, color = primaryTextColor)
+                Text("Real-time weather, day/night cycles & custom canvas particles", style = MaterialTheme.typography.labelSmall.copy(color = secondaryTextColor, fontSize = 10.sp))
               }
             }
             Button(
-              onClick = onOpenEnvironmentalEngineDialog,
+              onClick = {
+                HapticManager.navigationClick(context)
+                onOpenEnvironmentalEngineDialog()
+              },
               modifier = Modifier.testTag("open_environmental_engine_button"),
-              shape = RoundedCornerShape(12.dp),
-              colors = ButtonDefaults.buttonColors(containerColor = activeThemeAccent)
+              shape = RoundedCornerShape(10.dp),
+              colors = ButtonDefaults.buttonColors(containerColor = activeThemeAccent),
+              contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
             ) {
-              Text("Configure", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+              Text("Configure", fontSize = 11.sp, fontWeight = FontWeight.Bold)
             }
           }
         }
       }
     }
 
-    // 4. Custom Accent Color Picker Card
+    // 3. Custom Accent Color Picker Card (Slim compressed layout)
     item {
       Card(
         modifier = Modifier
           .fillMaxWidth()
+          .wrapContentHeight()
           .testTag("custom_accent_color_card"),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, cardBorder),
         colors = CardDefaults.cardColors(containerColor = cardContainer)
       ) {
-        Column(
-          modifier = Modifier.padding(16.dp),
-          verticalArrangement = Arrangement.spacedBy(12.dp)
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .padding(10.dp),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically
         ) {
           Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            modifier = Modifier.weight(1f)
           ) {
-            Icon(Icons.Default.ColorLens, contentDescription = null, tint = activeThemeAccent, modifier = Modifier.size(20.dp))
-            Text("Custom Accent Color", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleSmall, color = primaryTextColor)
-          }
-
-          Text(
-            "Override the active theme's accent color with your own chosen hex hue.",
-            style = MaterialTheme.typography.labelSmall.copy(color = secondaryTextColor)
-          )
-
-          Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-          ) {
-            Row(
-              verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-              Box(
-                modifier = Modifier
-                  .size(24.dp)
-                  .clip(CircleShape)
-                  .background(activeThemeAccent)
-                  .border(1.5.dp, primaryTextColor.copy(alpha = 0.4f), CircleShape)
-              )
+            Box(
+              modifier = Modifier
+                .size(24.dp)
+                .clip(CircleShape)
+                .background(activeThemeAccent)
+                .border(1.5.dp, primaryTextColor.copy(alpha = 0.4f), CircleShape)
+            )
+            Column {
+              Text("Custom Accent Color", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodySmall, color = primaryTextColor)
               Text(
                 if (customAccentColor != null) "Active: Custom Override" else "Default Preset Accent",
-                style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
-                color = primaryTextColor
+                style = MaterialTheme.typography.labelSmall.copy(color = secondaryTextColor, fontSize = 10.sp)
               )
             }
+          }
 
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-              if (customAccentColor != null) {
-                OutlinedButton(
-                  onClick = {
-                    onCustomAccentColorChanged(null)
-                    ThemePreferences.setSavedCustomAccentColor(context, null)
-                  },
-                  shape = RoundedCornerShape(10.dp),
-                  border = BorderStroke(1.dp, cardBorder),
-                  contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
-                ) {
-                  Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(14.dp), tint = secondaryTextColor)
-                  Spacer(modifier = Modifier.width(4.dp))
-                  Text("Reset", fontSize = 11.sp, color = secondaryTextColor)
-                }
-              }
-
-              Button(
-                onClick = onOpenColorPicker,
-                shape = RoundedCornerShape(10.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = activeThemeAccent),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+          Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (customAccentColor != null) {
+              OutlinedButton(
+                onClick = {
+                  HapticManager.selectionTick(context)
+                  onCustomAccentColorChanged(null)
+                  ThemePreferences.setSavedCustomAccentColor(context, null)
+                },
+                shape = RoundedCornerShape(8.dp),
+                border = BorderStroke(1.dp, cardBorder),
+                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+                modifier = Modifier.height(28.dp)
               ) {
-                Text("Pick Color", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Icon(Icons.Default.RestartAlt, contentDescription = null, modifier = Modifier.size(12.dp), tint = secondaryTextColor)
+                Spacer(modifier = Modifier.width(3.dp))
+                Text("Reset", fontSize = 10.sp, color = secondaryTextColor)
               }
+            }
+
+            Button(
+              onClick = {
+                HapticManager.navigationClick(context)
+                onOpenColorPicker()
+              },
+              shape = RoundedCornerShape(8.dp),
+              colors = ButtonDefaults.buttonColors(containerColor = activeThemeAccent),
+              contentPadding = PaddingValues(horizontal = 10.dp, vertical = 2.dp),
+              modifier = Modifier.height(28.dp)
+            ) {
+              Text("Pick Color", fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
           }
         }
       }
     }
 
-    // 5. 50 Master Theme Catalog with Hard 10-Item Pagination Threshold
+    // 4. Master 100 Design Options Catalog Card - Compressed Slim-List Structure (wrap_content)
     item {
       Card(
         modifier = Modifier
           .fillMaxWidth()
+          .wrapContentHeight()
           .testTag("master_design_options_grid_card"),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(14.dp),
         border = BorderStroke(1.dp, cardBorder),
         colors = CardDefaults.cardColors(containerColor = cardContainer)
       ) {
         Column(
-          modifier = Modifier.padding(16.dp),
-          verticalArrangement = Arrangement.spacedBy(12.dp)
+          modifier = Modifier
+            .fillMaxWidth()
+            .wrapContentHeight()
+            .padding(10.dp),
+          verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
           // Header Bar
           Row(
@@ -416,11 +354,11 @@ fun InterfaceThemesSubSection(
           ) {
             Row(
               verticalAlignment = Alignment.CenterVertically,
-              horizontalArrangement = Arrangement.spacedBy(8.dp)
+              horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
-              Icon(Icons.Default.Apps, contentDescription = null, tint = activeThemeAccent, modifier = Modifier.size(20.dp))
+              Icon(Icons.Default.Apps, contentDescription = null, tint = activeThemeAccent, modifier = Modifier.size(18.dp))
               Text(
-                "50 Master Design Options Catalog",
+                "Master 100 Design Options",
                 fontWeight = FontWeight.Bold,
                 style = MaterialTheme.typography.titleSmall,
                 color = primaryTextColor
@@ -433,270 +371,305 @@ fun InterfaceThemesSubSection(
               border = BorderStroke(1.dp, activeThemeAccent.copy(alpha = 0.5f))
             ) {
               Text(
-                text = "${filteredVariants.size} Profiles",
+                text = "${filteredVariants.size} Styles",
                 style = MaterialTheme.typography.labelSmall.copy(
                   color = activeThemeAccent,
-                  fontWeight = FontWeight.Bold
+                  fontWeight = FontWeight.Bold,
+                  fontSize = 10.sp
                 ),
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
               )
             }
           }
 
-          Text(
-            "Hard layout pagination threshold active (max 10 profiles initialized on-screen). Graphic vectors outside current window view slot are detached to guarantee 0 scroll latency.",
-            style = MaterialTheme.typography.labelSmall.copy(color = secondaryTextColor)
-          )
-
-          // Category Filter Pills
+          // Compact Category Filter Pills
           Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
           ) {
             designCategories.take(3).forEach { cat ->
               FilterChip(
                 selected = selectedDesignCategoryFilter == cat,
                 onClick = {
+                  HapticManager.selectionTick(context)
                   selectedDesignCategoryFilter = cat
                   currentCatalogPage = 0
                 },
-                label = { Text(cat, fontSize = 11.sp) }
+                label = { Text(cat, fontSize = 10.sp) },
+                modifier = Modifier.height(28.dp)
               )
             }
           }
           Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(6.dp)
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
           ) {
-            designCategories.drop(3).forEach { cat ->
+            designCategories.drop(3).take(3).forEach { cat ->
               FilterChip(
                 selected = selectedDesignCategoryFilter == cat,
                 onClick = {
+                  HapticManager.selectionTick(context)
                   selectedDesignCategoryFilter = cat
                   currentCatalogPage = 0
                 },
-                label = { Text(cat, fontSize = 11.sp) }
+                label = { Text(cat, fontSize = 10.sp) },
+                modifier = Modifier.height(28.dp)
+              )
+            }
+          }
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+          ) {
+            designCategories.drop(6).forEach { cat ->
+              FilterChip(
+                selected = selectedDesignCategoryFilter == cat,
+                onClick = {
+                  HapticManager.selectionTick(context)
+                  selectedDesignCategoryFilter = cat
+                  currentCatalogPage = 0
+                },
+                label = { Text(cat, fontSize = 10.sp) },
+                modifier = Modifier.height(28.dp)
               )
             }
           }
 
-          HorizontalDivider(color = cardBorder)
+          HorizontalDivider(color = cardBorder.copy(alpha = 0.4f))
 
-          // Pagination Controls Toolbar (Header)
+          // Compact Pagination Toolbar
           Row(
             modifier = Modifier
               .fillMaxWidth()
-              .background(cardBorder.copy(alpha = 0.25f), RoundedCornerShape(10.dp))
-              .padding(horizontal = 10.dp, vertical = 6.dp),
+              .background(cardBorder.copy(alpha = 0.2f), RoundedCornerShape(8.dp))
+              .padding(horizontal = 8.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
           ) {
             Text(
-              text = "Page ${safeCurrentPage + 1} of $totalPages (${activeWindowTenCardSlice.size} Visible)",
+              text = "Page ${safeCurrentPage + 1} of $totalPages",
               style = MaterialTheme.typography.labelSmall.copy(
                 fontWeight = FontWeight.Bold,
-                color = activeThemeAccent
+                color = activeThemeAccent,
+                fontSize = 11.sp
               )
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
               OutlinedButton(
-                onClick = { if (safeCurrentPage > 0) currentCatalogPage = safeCurrentPage - 1 },
+                onClick = {
+                  if (safeCurrentPage > 0) {
+                    HapticManager.navigationClick(context)
+                    currentCatalogPage = safeCurrentPage - 1
+                  }
+                },
                 enabled = safeCurrentPage > 0,
-                shape = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                modifier = Modifier.height(30.dp)
+                shape = RoundedCornerShape(6.dp),
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                modifier = Modifier.height(26.dp)
               ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous 10", modifier = Modifier.size(14.dp))
-                Spacer(modifier = Modifier.width(4.dp))
-                Text("Prev", fontSize = 11.sp)
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Page", modifier = Modifier.size(12.dp))
+                Spacer(modifier = Modifier.width(2.dp))
+                Text("Prev", fontSize = 10.sp)
               }
 
               OutlinedButton(
-                onClick = { if (safeCurrentPage < totalPages - 1) currentCatalogPage = safeCurrentPage + 1 },
+                onClick = {
+                  if (safeCurrentPage < totalPages - 1) {
+                    HapticManager.navigationClick(context)
+                    currentCatalogPage = safeCurrentPage + 1
+                  }
+                },
                 enabled = safeCurrentPage < totalPages - 1,
-                shape = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
-                modifier = Modifier.height(30.dp)
+                shape = RoundedCornerShape(6.dp),
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 2.dp),
+                modifier = Modifier.height(26.dp)
               ) {
-                Text("Next", fontSize = 11.sp)
-                Spacer(modifier = Modifier.width(4.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next 10", modifier = Modifier.size(14.dp))
+                Text("Next", fontSize = 10.sp)
+                Spacer(modifier = Modifier.width(2.dp))
+                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Page", modifier = Modifier.size(12.dp))
               }
             }
           }
 
-          // Strict 10-Item Active Window Card Elements
-          activeWindowTenCardSlice.forEach { variant ->
-            val isSelected = activeLauncherIconId == variant.id
-            val variantPrimary = Color(variant.primaryColorHex)
-            val variantAccent = Color(variant.accentColorHex)
+          // Compressed Slim-List Item Structure with wrap_content parameters
+          Column(
+            modifier = Modifier
+              .fillMaxWidth()
+              .wrapContentHeight(),
+            verticalArrangement = Arrangement.spacedBy(4.dp)
+          ) {
+            activeWindowTenCardSlice.forEach { variant ->
+              val isSelected = activeLauncherIconId == variant.id
+              val variantPrimary = Color(variant.primaryColorHex)
+              val variantAccent = Color(variant.accentColorHex)
 
-            // Detach memory footprint when element moves out of view slot
-            DisposableEffect(variant.id) {
-              onDispose {
-                // Garbage-collect resources allocated for this item
-              }
-            }
-
-            Card(
-              onClick = {
-                activeLauncherIconId = variant.id
-                val success = IconChangerEngine.setLauncherIcon(context, variant.id)
-                if (success) {
-                  Toast.makeText(
-                    context,
-                    "Activated: ${variant.title}\nToken: ${variant.aliasClass}",
-                    Toast.LENGTH_SHORT
-                  ).show()
+              DisposableEffect(variant.id) {
+                onDispose {
+                  // Clean resource references on page unmount
                 }
-              },
-              modifier = Modifier
-                .fillMaxWidth()
-                .testTag("design_option_${variant.id}")
-                .border(
-                  if (isSelected) 2.dp else 1.dp,
-                  if (isSelected) variantAccent else cardBorder.copy(alpha = 0.5f),
-                  RoundedCornerShape(14.dp)
-                ),
-              shape = RoundedCornerShape(14.dp),
-              colors = CardDefaults.cardColors(
-                containerColor = if (isSelected) variantAccent.copy(alpha = 0.18f) else cardContainer.copy(alpha = 0.6f)
-              )
-            ) {
-              Row(
+              }
+
+              Surface(
                 modifier = Modifier
                   .fillMaxWidth()
-                  .padding(12.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(12.dp)
+                  .wrapContentHeight()
+                  .clip(RoundedCornerShape(8.dp))
+                  .border(
+                    if (isSelected) 1.5.dp else 0.5.dp,
+                    if (isSelected) variantAccent else cardBorder.copy(alpha = 0.4f),
+                    RoundedCornerShape(8.dp)
+                  )
+                  .clickable {
+                    activateThemeItem(variant)
+                  }
+                  .testTag("design_option_${variant.id}"),
+                shape = RoundedCornerShape(8.dp),
+                color = if (isSelected) variantAccent.copy(alpha = 0.16f) else cardContainer.copy(alpha = 0.4f)
               ) {
-                // Color swatch preview
-                Box(
+                Row(
                   modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(variantPrimary)
-                    .border(1.5.dp, variantAccent, RoundedCornerShape(10.dp)),
-                  contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+                    .padding(horizontal = 8.dp, vertical = 6.dp),
+                  verticalAlignment = Alignment.CenterVertically,
+                  horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
+                  // Color swatch preview
                   Box(
                     modifier = Modifier
-                      .size(14.dp)
-                      .clip(CircleShape)
-                      .background(variantAccent)
-                  )
-                }
-
-                Column(modifier = Modifier.weight(1f)) {
-                  Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                      .size(28.dp)
+                      .clip(RoundedCornerShape(6.dp))
+                      .background(variantPrimary)
+                      .border(1.dp, variantAccent, RoundedCornerShape(6.dp)),
+                    contentAlignment = Alignment.Center
                   ) {
-                    Text(
-                      text = variant.title,
-                      fontWeight = FontWeight.Bold,
-                      style = MaterialTheme.typography.bodyMedium,
-                      color = primaryTextColor
+                    Box(
+                      modifier = Modifier
+                        .size(10.dp)
+                        .clip(CircleShape)
+                        .background(variantAccent)
                     )
-                    Surface(
-                      shape = RoundedCornerShape(4.dp),
-                      color = variantAccent.copy(alpha = 0.18f)
-                    ) {
-                      Text(
-                        text = variant.category,
-                        style = MaterialTheme.typography.labelSmall.copy(
-                          fontSize = 9.sp,
-                          color = variantAccent,
-                          fontWeight = FontWeight.Bold
-                        ),
-                        modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
-                      )
-                    }
                   }
 
-                  Text(
-                    text = variant.subtitle,
-                    style = MaterialTheme.typography.labelSmall.copy(color = secondaryTextColor),
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis
-                  )
-
-                  // Exact matching unique activity-alias tracking token
-                  Surface(
-                    modifier = Modifier.padding(top = 4.dp),
-                    shape = RoundedCornerShape(6.dp),
-                    color = Color(0x33000000),
-                    border = BorderStroke(0.5.dp, Color(0x33FFFFFF))
+                  Column(
+                    modifier = Modifier
+                      .weight(1f)
+                      .wrapContentHeight()
                   ) {
+                    Row(
+                      verticalAlignment = Alignment.CenterVertically,
+                      horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                      Text(
+                        text = variant.title,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
+                        color = primaryTextColor,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                      )
+                      Surface(
+                        shape = RoundedCornerShape(3.dp),
+                        color = variantAccent.copy(alpha = 0.15f)
+                      ) {
+                        Text(
+                          text = variant.category,
+                          style = MaterialTheme.typography.labelSmall.copy(
+                            fontSize = 8.sp,
+                            color = variantAccent,
+                            fontWeight = FontWeight.Bold
+                          ),
+                          modifier = Modifier.padding(horizontal = 3.dp, vertical = 0.5.dp)
+                        )
+                      }
+                    }
+
                     Text(
-                      text = variant.aliasClass,
+                      text = variant.subtitle,
+                      style = MaterialTheme.typography.labelSmall.copy(color = secondaryTextColor, fontSize = 10.sp),
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis
+                    )
+
+                    // Compact alias token chip
+                    Text(
+                      text = variant.aliasClass.substringAfterLast("."),
                       style = MaterialTheme.typography.labelSmall.copy(
-                        fontSize = 9.sp,
+                        fontSize = 8.5.sp,
                         color = variantAccent,
                         fontFamily = FontFamily.Monospace
                       ),
-                      modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                      maxLines = 1,
+                      overflow = TextOverflow.Ellipsis
                     )
                   }
-                }
 
-                RadioButton(
-                  selected = isSelected,
-                  onClick = {
-                    activeLauncherIconId = variant.id
-                    val success = IconChangerEngine.setLauncherIcon(context, variant.id)
-                    if (success) {
-                      Toast.makeText(
-                        context,
-                        "Activated: ${variant.title}\nToken: ${variant.aliasClass}",
-                        Toast.LENGTH_SHORT
-                      ).show()
-                    }
-                  },
-                  colors = RadioButtonDefaults.colors(
-                    selectedColor = variantAccent,
-                    unselectedColor = secondaryTextColor.copy(alpha = 0.5f)
+                  RadioButton(
+                    selected = isSelected,
+                    onClick = {
+                      activateThemeItem(variant)
+                    },
+                    colors = RadioButtonDefaults.colors(
+                      selectedColor = variantAccent,
+                      unselectedColor = secondaryTextColor.copy(alpha = 0.4f)
+                    ),
+                    modifier = Modifier.size(24.dp)
                   )
-                )
+                }
               }
             }
           }
 
-          // Bottom Pagination Bar for smooth browsing
-          if (totalPages > 1) {
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically
+          // Strict Tracking Footer: "Page X of 10" (defaults to "Page 1 of 10")
+          Row(
+            modifier = Modifier
+              .fillMaxWidth()
+              .padding(top = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+          ) {
+            OutlinedButton(
+              onClick = {
+                if (safeCurrentPage > 0) {
+                  HapticManager.navigationClick(context)
+                  currentCatalogPage = safeCurrentPage - 1
+                }
+              },
+              enabled = safeCurrentPage > 0,
+              shape = RoundedCornerShape(6.dp),
+              contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+              modifier = Modifier.height(28.dp)
             ) {
-              OutlinedButton(
-                onClick = { if (safeCurrentPage > 0) currentCatalogPage = safeCurrentPage - 1 },
-                enabled = safeCurrentPage > 0,
-                shape = RoundedCornerShape(8.dp)
-              ) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Page", modifier = Modifier.size(16.dp))
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("Previous 10")
-              }
+              Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Previous Page", modifier = Modifier.size(12.dp))
+              Spacer(modifier = Modifier.width(3.dp))
+              Text("Previous", fontSize = 10.sp)
+            }
 
-              Text(
-                text = "${safeCurrentPage + 1} / $totalPages",
-                style = MaterialTheme.typography.labelMedium.copy(
-                  fontWeight = FontWeight.Bold,
-                  color = primaryTextColor
-                )
-              )
+            Text(
+              text = "Page ${safeCurrentPage + 1} of $totalPages",
+              style = MaterialTheme.typography.labelSmall.copy(
+                fontWeight = FontWeight.Bold,
+                color = primaryTextColor
+              ),
+              modifier = Modifier.testTag("catalog_pagination_footer_label")
+            )
 
-              OutlinedButton(
-                onClick = { if (safeCurrentPage < totalPages - 1) currentCatalogPage = safeCurrentPage + 1 },
-                enabled = safeCurrentPage < totalPages - 1,
-                shape = RoundedCornerShape(8.dp)
-              ) {
-                Text("Next 10")
-                Spacer(modifier = Modifier.width(6.dp))
-                Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Page", modifier = Modifier.size(16.dp))
-              }
+            OutlinedButton(
+              onClick = {
+                if (safeCurrentPage < totalPages - 1) {
+                  HapticManager.navigationClick(context)
+                  currentCatalogPage = safeCurrentPage + 1
+                }
+              },
+              enabled = safeCurrentPage < totalPages - 1,
+              shape = RoundedCornerShape(6.dp),
+              contentPadding = PaddingValues(horizontal = 8.dp, vertical = 2.dp),
+              modifier = Modifier.height(28.dp)
+            ) {
+              Text("Next", fontSize = 10.sp)
+              Spacer(modifier = Modifier.width(3.dp))
+              Icon(Icons.AutoMirrored.Filled.ArrowForward, contentDescription = "Next Page", modifier = Modifier.size(12.dp))
             }
           }
         }
